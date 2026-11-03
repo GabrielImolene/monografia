@@ -1,0 +1,550 @@
+% ----------------------------------------------------------
+% Análise dos Resultados
+% 
+% ----------------------------------------------------------
+
+\chapter[Desenvolvimento]{Desenvolvimento}
+
+\section{Levantamento e especificação dos requisitos} Campari
+
+\subsection{Processo de levantamento dos requisitos}
+
+\subsection{Atores e casos de uso}
+
+\subsection{Requisitos funcionais}
+
+\subsection{Requisitos não funcionais}
+
+\subsection{Critérios de aceitação e rastreabilidade}
+
+\section{Planejamento e organização do projeto}
+
+\subsection{Etapas de desenvolvimento}
+
+\subsection{Cronograma acadêmico}
+
+\subsection{Cronograma de desenvolvimento e diagrama de Gantt}
+
+\subsection{Papéis e responsabilidades dos integrantes}
+
+\section{Arquitetura do software}
+
+\subsection{Visão geral da arquitetura}
+
+\subsection{Componentes e responsabilidades}
+
+\subsection{Comunicação entre interface, API interna e processamento}
+
+\subsection{Fluxo de execução dos dados}
+
+\subsection{Decisões arquiteturais}
+
+\section{Projeto do banco de dados}
+\label{sec:projeto-banco-dados}
+
+O banco de dados do Refino foi projetado para preservar o contexto das operações de tratamento de dados metabolômicos. Além de armazenar informações sobre os estudos e as matrizes recebidas, sua estrutura permite registrar os diagnósticos produzidos, as configurações de processamento, as decisões metodológicas e as métricas obtidas nas execuções. Dessa forma, o resultado de um tratamento pode ser relacionado aos dados de origem e ao procedimento utilizado para produzi-lo.
+
+As matrizes de medições são recebidas por meio de arquivos exportados do Progenesis QI e submetidas às etapas de validação, correção e pré-processamento. Após o tratamento, os arquivos resultantes podem ser utilizados pelos profissionais do laboratório em ferramentas como o MetaboAnalyst. Nesse fluxo, o banco de dados armazena os metadados e os registros associados ao processamento, enquanto os valores das matrizes científicas são mantidos nos arquivos de entrada e nos artefatos de saída.
+
+A solução utiliza um modelo relacional, definido com os recursos do SQLAlchemy Core, e um mecanismo de evolução do esquema baseado em migrações com Alembic. A persistência é realizada em SQLite, integrado ao aplicativo Windows. Essa escolha permite o funcionamento local sem exigir a instalação ou a configuração de um servidor de banco de dados, facilitando a utilização do sistema pelos profissionais do laboratório.
+
+A organização da persistência considera quatro necessidades principais: identificar os conjuntos de dados processados, preservar as configurações utilizadas, manter o histórico das decisões e associar os resultados de qualidade às respectivas execuções. Essas necessidades orientaram a definição das entidades, dos relacionamentos e dos mecanismos de integridade apresentados nas subseções seguintes.
+
+\subsection{Finalidade da persistência}
+\label{subsec:finalidade-persistencia}
+
+A finalidade da persistência é conservar as informações necessárias para compreender e acompanhar o processamento realizado pelo sistema. Uma matriz tratada contém os valores resultantes das operações, mas não apresenta, isoladamente, todos os elementos necessários para explicar sua obtenção. Para interpretar o resultado, também é necessário conhecer a entrada utilizada, os parâmetros selecionados, as etapas executadas e as decisões tomadas durante o tratamento.
+
+Essa necessidade está relacionada à natureza do pré-processamento metabolômico. A escolha do método de correção, o critério de filtragem das variáveis, a estratégia de tratamento dos valores ausentes e as operações de normalização podem alterar os dados encaminhados para análise. Por isso, a configuração aplicada constitui parte do contexto metodológico do resultado e precisa ser preservada.
+
+O armazenamento é organizado a partir do estudo e de suas matrizes. Cada estudo reúne os conjuntos de dados pertencentes a um mesmo contexto experimental. Cada matriz, por sua vez, possui informações sobre o modo de aquisição, a quantidade de amostras, a quantidade de variáveis e a soma de verificação da entrada. Essa organização permite distinguir conjuntos de dados e associar os registros posteriores à matriz correspondente.
+
+A soma de verificação, armazenada no campo \texttt{checksum\_entrada}, contribui para a identificação do conteúdo utilizado no processamento. O nome do arquivo não é suficiente para essa finalidade, pois pode ser alterado sem modificar os dados ou mantido após uma edição de seu conteúdo. O registro do \textit{checksum} permite verificar se um arquivo corresponde à entrada associada à matriz persistida.
+
+O banco também preserva os metadados das amostras. Informações como ordem de injeção, tipo de amostra, grupo experimental e lote participam da interpretação dos dados e das operações de correção. Seu armazenamento mantém esses elementos associados à matriz, permitindo recuperar o contexto em que as medições foram obtidas.
+
+Outra finalidade da persistência é registrar a participação do sistema e do profissional nas escolhas metodológicas. O Refino pode produzir propostas de configuração por meio de regras ou modelos, mas o usuário pode avaliar e modificar essas propostas. O histórico precisa, portanto, distinguir a origem da escolha e preservar a justificativa registrada, evitando que a configuração final elimine a informação sobre a proposta inicial.
+
+A persistência mantém essas informações disponíveis após o encerramento da aplicação. Os registros deixam de depender da memória do processo e podem ser consultados posteriormente, favorecendo a análise técnica, a identificação de diferenças entre processamentos e a discussão das escolhas realizadas.
+
+O armazenamento local também atende às condições de utilização do aplicativo no laboratório. Como o SQLite mantém o banco em um arquivo, a aplicação não depende de um serviço de banco de dados separado para registrar suas operações. Essa característica simplifica a implantação e permite que o processamento e a persistência sejam realizados no próprio computador utilizado pelo profissional.
+
+O banco complementa os arquivos científicos e os relatórios gerados. A recuperação completa do contexto de uma análise exige a conservação desses elementos em conjunto: os registros persistidos descrevem o processamento, os arquivos mantêm os dados de entrada e de saída, e os relatórios apresentam os resultados e as informações necessárias à sua interpretação.
+
+\subsection{Modelo de dados e relacionamentos}
+\label{subsec:modelo-dados-relacionamentos}
+
+O modelo de dados do fluxo principal é organizado pelas entidades estudo, matriz, amostra, diagnóstico, decisão, execução e relatório de qualidade. Essa divisão separa a identificação dos dados recebidos das avaliações realizadas sobre eles e dos procedimentos utilizados em seu tratamento.
+
+As tabelas são definidas com SQLAlchemy Core, e o acesso aos registros é realizado por repositórios que utilizam consultas explícitas. Essa organização concentra as operações de leitura e escrita na camada de persistência, preservando a separação entre o armazenamento e os componentes responsáveis pelos cálculos científicos.
+
+A tabela \texttt{studies} representa o estudo. Seus atributos incluem um identificador, o nome, a descrição e a data de criação. O nome possui uma restrição de unicidade, permitindo diferenciar os estudos registrados no banco. Essa entidade constitui o nível superior de organização dos dados.
+
+A tabela \texttt{matrices} representa as matrizes associadas aos estudos. Cada registro contém o identificador do estudo, o modo de aquisição, a quantidade de amostras, a quantidade de variáveis e a soma de verificação do arquivo de entrada. O campo \texttt{study\_id} estabelece o vínculo com \texttt{studies}.
+
+O relacionamento entre estudo e matriz é de um para muitos. Um estudo pode reunir diversas matrizes, enquanto cada matriz pertence a um estudo. Essa cardinalidade permite representar diferentes condições de aquisição dentro de um mesmo contexto experimental, preservando a identificação individual de cada conjunto de dados.
+
+A tabela \texttt{samples} armazena os metadados das amostras pertencentes a uma matriz. Cada registro contém o identificador da matriz, o nome da amostra, a ordem de injeção, o tipo de amostra, o grupo experimental e o lote. O relacionamento entre matriz e amostra também é de um para muitos.
+
+A ordem de injeção é obrigatória porque representa a posição da amostra na sequência de aquisição. Essa informação é utilizada na avaliação da variação do sinal ao longo da corrida e nos procedimentos de correção de deriva instrumental. Sua preservação permite relacionar os valores observados ao contexto temporal da aquisição.
+
+O tipo de amostra e o grupo experimental possuem funções distintas. O tipo identifica a natureza da amostra no processamento, incluindo as amostras de controle de qualidade. O grupo representa sua classificação experimental. O lote identifica o bloco de aquisição ao qual a amostra pertence. A separação desses atributos evita reunir informações metodologicamente diferentes em um único campo.
+
+A tabela \texttt{diagnoses} registra os diagnósticos produzidos sobre uma matriz. Seus atributos incluem o identificador da matriz, o tipo de defeito identificado, a confiança atribuída ao diagnóstico, o perfil utilizado na avaliação e a data de criação. O campo \texttt{profile\_json} conserva a representação detalhada desse perfil.
+
+O relacionamento entre matriz e diagnóstico é de um para muitos. Essa organização permite manter diferentes avaliações associadas à mesma matriz, sem substituir sua identificação ou alterar seus metadados de origem.
+
+A tabela \texttt{decisions} armazena as escolhas metodológicas registradas no sistema. Cada decisão pertence a uma matriz e pode estar vinculada a um diagnóstico. Seus atributos incluem a especificação escolhida, a justificativa, a origem, a data de criação e informações sobre a apresentação da proposta e os campos sobrescritos pelo usuário.
+
+O campo \texttt{origem} distingue os valores \texttt{heuristica}, \texttt{modelo} e \texttt{manual}. Esses valores permitem identificar se a decisão foi produzida por uma regra, por um modelo ou pela intervenção do profissional. A justificativa, armazenada em \texttt{rationale}, acrescenta o contexto necessário para interpretar a escolha.
+
+O vínculo entre decisão e diagnóstico é opcional. Essa característica permite registrar escolhas manuais mesmo quando não existe um diagnóstico associado. Uma decisão mantém, entretanto, seu vínculo com a matriz à qual se refere.
+
+A tabela \texttt{runs} representa as execuções do pipeline. Cada execução está associada a uma matriz e contém a especificação de processamento, a semente utilizada, os instantes de início e término, o estado da execução e o registro das etapas realizadas.
+
+O relacionamento entre matriz e execução é de um para muitos. Assim, uma mesma matriz pode ser processada diversas vezes, inclusive com configurações diferentes. A separação entre essas entidades evita confundir o conjunto de dados recebido com uma tentativa específica de tratamento.
+
+A especificação é armazenada no campo \texttt{spec\_json}. A semente é registrada em \texttt{seed}, enquanto os campos \texttt{iniciado\_em} e \texttt{terminado\_em} situam a execução no tempo. O campo \texttt{status} representa seu estado, e \texttt{etapas\_json} preserva informações sobre o processamento realizado.
+
+A tabela \texttt{quality\_reports} armazena as métricas de qualidade vinculadas às execuções. Cada registro possui uma chave estrangeira para \texttt{runs} e um campo \texttt{metrics\_json} com as medidas correspondentes. Essa associação permite interpretar as métricas em conjunto com a especificação que produziu o resultado.
+
+A vinculação do relatório à execução é necessária porque a qualidade observada depende do processamento aplicado. Uma mesma matriz pode apresentar resultados diferentes após alterações no método de correção ou nos parâmetros de pré-processamento. Portanto, as métricas são relacionadas à execução correspondente, mantendo o contexto de sua obtenção.
+
+O modelo utiliza campos textuais com conteúdo serializado em JSON para representar informações estruturadas, como especificações, perfis de diagnóstico, etapas e métricas. Essa escolha permite conservar conjuntos de parâmetros e resultados sem criar uma coluna relacional para cada elemento interno.
+
+A estrutura combina, assim, relacionamentos definidos por chaves com documentos detalhados armazenados nos registros. As chaves organizam os vínculos entre as entidades, enquanto os documentos JSON preservam o conteúdo necessário à interpretação das configurações e dos resultados. A validação dos atributos internos desses documentos é realizada pela aplicação.
+
+No modelo adotado, execuções, diagnósticos e decisões se relacionam à matriz. Não há uma chave estrangeira direta entre a execução e a decisão. A configuração efetivamente utilizada é preservada no próprio registro de execução, enquanto as propostas e intervenções humanas são mantidas no histórico de decisões da matriz e, quando existente, do diagnóstico associado.
+
+Essa estrutura permite recuperar o procedimento aplicado e consultar o histórico metodológico correspondente. Entretanto, o relacionamento direto disponível no banco deve ser respeitado na interpretação dos registros: o vínculo com a matriz não equivale, por si só, a uma associação individual entre uma decisão e uma execução.
+
+\subsection{Integridade e migrações}
+\label{subsec:integridade-migracoes}
+
+A integridade dos registros é sustentada por restrições do esquema, validações da aplicação e procedimentos da camada de persistência. Esses mecanismos atuam de forma complementar para manter a organização dos dados e impedir a gravação de informações incompatíveis com as regras do sistema.
+
+As chaves primárias identificam os registros de cada tabela. As chaves estrangeiras declaram os vínculos entre entidades, como a associação da matriz ao estudo, da amostra à matriz e do relatório de qualidade à execução. Essa estrutura permite organizar as consultas e definir as dependências entre os registros.
+
+As restrições de unicidade são aplicadas aos atributos ou às combinações que não devem ser duplicados. O nome do estudo constitui um exemplo desse controle. Entretanto, a presença de registros com vínculos semelhantes nem sempre representa duplicidade indevida.
+
+Na tabela \texttt{decisions}, não existe uma restrição de unicidade para a combinação entre matriz e diagnóstico. Essa característica permite preservar a proposta automática e a manifestação do profissional em registros separados. Impedir a existência dessas duas linhas comprometeria a representação da interação entre o sistema e o usuário.
+
+O esquema declara exclusão em cascata em relacionamentos de dependência. Entre eles estão os vínculos entre estudo e matriz, matriz e amostra, e execução e relatório de qualidade. Essa política expressa que determinados registros dependentes devem ser removidos quando a entidade principal correspondente é excluída.
+
+No SQLite utilizado pelo aplicativo, a configuração de conexão não habilita a aplicação automática das chaves estrangeiras. Consequentemente, a declaração de exclusão em cascata não é suficiente para executar a remoção dos registros dependentes. A limpeza é realizada explicitamente pela camada de persistência, respeitando a ordem das dependências.
+
+Essa característica delimita a responsabilidade dos mecanismos de integridade. Os relacionamentos permanecem definidos no esquema, mas sua aplicação automática depende da configuração do banco. No ambiente utilizado pelo produto, os procedimentos de escrita e exclusão precisam preservar a consistência dos vínculos.
+
+O relacionamento entre diagnóstico e decisão declara a política \texttt{SET NULL}. Seu objetivo é permitir que a exclusão de um diagnóstico preserve a decisão, removendo apenas a referência ao registro excluído. Dessa forma, a escolha metodológica pode permanecer no histórico mesmo quando o diagnóstico ao qual estava vinculada deixa de existir. No SQLite, essa política também exige tratamento compatível na camada de persistência.
+
+Os vocabulários fechados do domínio são controlados por validações específicas. No caso da origem das decisões, os valores previstos distinguem escolhas heurísticas, escolhas produzidas por modelo e escolhas manuais. A validação na aplicação impede que valores incompatíveis sejam encaminhados à persistência, enquanto as restrições existentes no esquema acrescentam controle no armazenamento.
+
+O campo \texttt{runs.status} é gerenciado pela aplicação e não possui uma restrição de domínio equivalente no banco. A validade de seu conteúdo depende, portanto, dos procedimentos responsáveis por atualizar o estado da execução. Essa divisão mantém explícita a responsabilidade da camada que controla o ciclo de processamento.
+
+As restrições do esquema recebem nomes gerados por uma convenção de nomenclatura. A padronização facilita sua identificação durante alterações estruturais, permitindo que uma migração localize o elemento que precisa ser modificado. Esse procedimento contribui para a manutenção do banco ao longo da evolução do sistema.
+
+As migrações são gerenciadas com Alembic e organizadas em uma cadeia linear de revisões. Cada revisão representa uma alteração do esquema e estabelece sua posição em relação à versão anterior. Assim, um banco criado em uma versão anterior pode ser atualizado para a estrutura exigida por uma versão posterior da aplicação.
+
+Entre as alterações realizadas estão a inclusão dos campos destinados a registrar a apresentação da proposta e a sobrescrita de parâmetros nas decisões. Essas mudanças ampliaram a capacidade de representar a intervenção do profissional, preservando informações que não eram expressas apenas pela configuração final.
+
+As migrações também permitem corrigir a nomenclatura de atributos quando ela não corresponde à quantidade armazenada. A distinção entre valor-p e valor-q, por exemplo, exige que o nome do campo represente corretamente a aplicação de ajuste para múltiplos testes. A evolução do esquema envolve, portanto, tanto mudanças estruturais quanto adequações semânticas.
+
+As operações de alteração de tabelas precisam considerar as limitações do SQLite. Quando uma mudança não pode ser aplicada diretamente, utiliza-se um procedimento de cópia e substituição: a estrutura atualizada é criada, os dados compatíveis são transferidos e a tabela anterior é substituída. Esse mecanismo permite realizar alterações preservando os registros abrangidos pela migração.
+
+A estratégia de testes inclui a aplicação e a reversão das migrações em bancos populados. A verificação considera a estrutura resultante e a preservação dos dados envolvidos nos cenários de teste. Esse procedimento reduz o risco de alterações que funcionem apenas em bancos vazios ou que produzam perda de informações durante a atualização.
+
+O tratamento das datas também participa da consistência dos registros. Como o SQLite não preserva a informação de fuso horário da mesma forma que outros mecanismos relacionais, a camada de repositório restabelece a indicação de UTC na leitura. Essa convenção permite interpretar os instantes registrados de maneira uniforme.
+
+Além da integridade estrutural, a persistência exige cuidados com os dados armazenados. Os metadados podem conter identificadores e grupos experimentais associados às amostras. Por isso, o arquivo do banco é excluído dos pacotes públicos de distribuição do aplicativo, evitando que registros produzidos durante o uso sejam incorporados ao material publicado.
+
+\subsection{Rastreabilidade das execuções}
+\label{subsec:rastreabilidade-execucoes}
+
+A rastreabilidade das execuções permite relacionar os resultados produzidos aos dados utilizados e ao procedimento aplicado. No Refino, essa capacidade é sustentada pela identificação das matrizes, pelo registro das configurações e sementes, pela preservação das decisões e pela associação das métricas de qualidade às execuções.
+
+O primeiro elemento desse percurso é a identificação da entrada. A matriz registra o estudo ao qual pertence, o modo de aquisição, suas dimensões e a soma de verificação do arquivo. Os metadados das amostras acrescentam informações sobre a ordem de injeção, o tipo, os grupos experimentais e os lotes. Esses registros estabelecem o contexto do conjunto de dados recebido.
+
+O segundo elemento é a especificação do processamento. O registro de execução preserva a configuração utilizada no pipeline, permitindo consultar os parâmetros associados ao tratamento. Dessa forma, diferenças entre resultados podem ser analisadas considerando as escolhas efetivamente aplicadas.
+
+A semente registrada contribui para o controle das operações estocásticas. Sua preservação permite identificar o parâmetro utilizado para inicializar os procedimentos que envolvem aleatoriedade. Entretanto, a repetição da semente deve ser acompanhada da conservação da entrada e de um ambiente computacional compatível para que a reexecução seja interpretada adequadamente.
+
+Os instantes de início e término situam a execução no tempo. O estado informa sua condição registrada, permitindo distinguir o processamento em andamento de seus desfechos. O conteúdo de \texttt{etapas\_json} acrescenta informações sobre as operações realizadas, ampliando o contexto disponível para acompanhamento.
+
+A rastreabilidade é limitada ao conteúdo efetivamente persistido. O registro de etapas não equivale a um histórico de todos os eventos internos da aplicação, e o banco não deve ser interpretado como um mecanismo de auditoria integral. Sua finalidade é conservar as informações metodológicas e operacionais previstas no modelo.
+
+As métricas de qualidade são vinculadas à execução por meio de \texttt{quality\_reports}. Essa relação permite consultar o resultado da avaliação junto à configuração que o produziu. Como diferentes medidas representam aspectos distintos do processamento, a análise considera um conjunto de métricas, evitando reduzir a avaliação a um único indicador.
+
+A preservação das decisões acrescenta outro nível de rastreabilidade. O campo de origem identifica se a escolha foi produzida por uma heurística, por um modelo ou pelo usuário. A justificativa permite compreender o motivo registrado, enquanto os campos relacionados à apresentação e à sobrescrita acrescentam informações sobre a interação do profissional com a proposta.
+
+O registro da proposta automática e da escolha manual é realizado de forma a preservar os dois valores. Quando o profissional exerce o controle de alteração, sua manifestação não substitui a proposta existente. A manutenção desses registros permite analisar a concordância entre o que foi sugerido e o que foi escolhido.
+
+Essa interação é representada por quatro situações:
+
+\begin{enumerate}
+    \item \textbf{Ausência de sobrescrita:} a proposta automática é mantida sem exercício explícito do controle de alteração.
+    \item \textbf{Sobrescrita com concordância:} o profissional exerce o controle e mantém uma especificação igual à proposta.
+    \item \textbf{Sobrescrita com discordância:} o profissional exerce o controle e escolhe uma especificação diferente.
+    \item \textbf{Ausência de proposta:} a configuração é definida manualmente sem uma proposta automática associada.
+\end{enumerate}
+
+A distinção entre ausência de sobrescrita e sobrescrita com concordância é necessária para interpretar a participação do usuário. Executar o processamento sem alterar os controles não demonstra, por si só, que a proposta foi avaliada e confirmada. Por outro lado, exercer o controle e manter a mesma configuração constitui uma manifestação explícita de concordância.
+
+Quando há proposta e manifestação manual, as duas decisões são gravadas na mesma transação. Esse procedimento evita a persistência parcial do par em caso de falha na operação. A transação preserva a unidade lógica necessária para interpretar a interação entre o sistema e o profissional.
+
+Esses registros representam escolhas metodológicas de tratamento dos dados. A concordância entre proposta e escolha manual não constitui validação biológica dos resultados nem aprovação clínica. Sua interpretação permanece vinculada à configuração do processamento.
+
+A rastreabilidade também contribui para a reprodutibilidade. O banco preserva a identidade da entrada, a especificação aplicada e a semente da execução, mas a reprodução do resultado depende de outros elementos. É necessário conservar os arquivos originais, a versão da ferramenta e as dependências utilizadas, além dos registros persistidos.
+
+Os relatórios complementam esse conjunto ao apresentar as informações da execução, as métricas de qualidade e os limites de interpretação dos resultados. Os artefatos exportados preservam os dados entregues ao usuário. A associação entre banco, arquivos e relatórios permite recuperar tanto o produto do tratamento quanto seu contexto metodológico.
+
+Dessa forma, a persistência sustenta o acompanhamento das execuções e a análise posterior das escolhas realizadas. A estrutura adotada permite consultar a origem dos dados, recuperar a configuração aplicada e examinar as métricas resultantes, contribuindo para a transparência do processamento desenvolvido em colaboração com o laboratório de metabolômica.
+
+
+\section{Implementação das funcionalidades}
+\label{sec:implementacao-funcionalidades}
+
+A implementação do Refino organiza o tratamento de dados metabolômicos em um fluxo que compreende a importação dos arquivos, a validação de sua estrutura, o diagnóstico da matriz, a escolha do método de correção, o pré-processamento e a exportação dos resultados. As funcionalidades foram desenvolvidas para reduzir a fragmentação das operações realizadas em diferentes ferramentas e preservar o contexto das decisões metodológicas tomadas durante o processamento.
+
+O aplicativo recebe matrizes de medições provenientes do Progenesis QI e informações complementares sobre as amostras. A partir dessas entradas, constrói uma representação interna padronizada, utilizada pelos componentes de diagnóstico, correção e análise. Os resultados são disponibilizados por meio de arquivos tratados, registros das etapas, métricas de qualidade e gráficos que auxiliam o profissional na avaliação do processamento.
+
+A interface Windows reúne os controles necessários à utilização dessas funcionalidades. As operações científicas permanecem separadas da apresentação, permitindo que a mesma lógica seja utilizada pela interface, pela API interna e pelos comandos de linha de comando. Essa organização evita a implementação de procedimentos distintos para uma mesma operação e favorece a manutenção do sistema.
+
+O fluxo contempla a participação do usuário nas escolhas metodológicas. As propostas automáticas podem ser avaliadas e sobrescritas, e as configurações aplicadas são registradas para consulta posterior. A automação atua, portanto, como apoio ao tratamento dos dados, mantendo a possibilidade de intervenção do profissional.
+
+\subsection{Tecnologias utilizadas}
+\label{subsec:tecnologias-utilizadas}
+
+O sistema foi desenvolvido em Python 3.12, utilizando bibliotecas destinadas ao processamento numérico, à análise estatística, ao aprendizado de máquina, à construção da interface e à persistência. A definição de uma versão específica da linguagem contribui para a padronização do ambiente de desenvolvimento e de execução.
+
+O NumPy é utilizado na representação e na manipulação das matrizes numéricas. As operações sobre amostras e variáveis são realizadas sobre estruturas que permitem cálculos vetorizados, seleção de subconjuntos e aplicação de transformações. Essa base é compartilhada pelos componentes de correção, pré-processamento e avaliação.
+
+O SciPy fornece recursos para cálculos científicos e testes estatísticos. O scikit-learn é empregado nos procedimentos de aprendizado de máquina e nas análises multivariadas, incluindo modelos baseados em florestas aleatórias e operações utilizadas na construção e na avaliação de modelos.
+
+A interface gráfica foi implementada com PySide6, utilizando o conjunto de componentes do Qt. Essa tecnologia permite organizar os controles em painéis, apresentar tabelas e mensagens, incorporar gráficos e acompanhar operações executadas em segundo plano.
+
+A comunicação entre a interface e as funcionalidades da aplicação utiliza uma API implementada com FastAPI. O servidor é iniciado pelo próprio aplicativo, com Uvicorn, e atende em endereço local. Essa camada estabelece contratos para operações como validação, diagnóstico, processamento e recuperação de resultados, mantendo a lógica científica separada dos componentes visuais.
+
+A persistência utiliza SQLite, com o esquema definido por SQLAlchemy Core e as migrações gerenciadas por Alembic. Os repositórios concentram as consultas e as operações de escrita, enquanto os componentes científicos recebem e devolvem estruturas em memória.
+
+Os gráficos são produzidos com Matplotlib e incorporados à interface para inspeção dos dados e dos resultados. A biblioteca também permite gerar imagens para exportação, possibilitando utilizar as figuras fora do aplicativo.
+
+A distribuição do sistema é realizada com PyInstaller. O empacotamento reúne o interpretador, as bibliotecas e os recursos necessários em uma pasta executável para Windows, permitindo a utilização do aplicativo sem a instalação manual do ambiente Python.
+
+A verificação da implementação utiliza pytest para testes automatizados, pytest-cov para acompanhamento de cobertura e Hypothesis para testes baseados em propriedades. Ruff e mypy são empregados na análise do código, contribuindo para a identificação de problemas de organização e de inconsistências de tipos.
+
+O código de referência em R é utilizado em procedimentos de comparação e validação dos métodos de correção. Essa participação pertence ao processo de desenvolvimento e avaliação da implementação, enquanto o fluxo principal do aplicativo executa os componentes de tratamento em Python.
+
+\subsection{Importação e validação dos arquivos}
+\label{subsec:importacao-validacao}
+
+A importação transforma os arquivos recebidos em uma representação interna adequada ao processamento. O fluxo principal utiliza a matriz de medições e a lista de amostras, que fornece informações necessárias para associar as colunas do arquivo aos metadados correspondentes, incluindo a ordem de injeção.
+
+A leitura considera diferenças de formatação entre arquivos CSV, como separadores e convenções de representação numérica. O reconhecimento dessas características precede a interpretação dos valores, evitando que um arquivo seja processado com uma configuração de leitura incompatível com seu conteúdo.
+
+Nos arquivos de entrada do laboratório, as variáveis estão organizadas em linhas e as amostras em colunas. Internamente, o sistema utiliza amostras em linhas e variáveis em colunas. A transposição é realizada durante a ingestão, estabelecendo uma orientação única para as operações posteriores.
+
+A associação entre a matriz e a lista de amostras é realizada pelos identificadores correspondentes. Essa etapa precisa preservar a relação entre cada conjunto de medições e seus metadados, pois uma associação incorreta poderia atribuir valores a outra amostra ou utilizar uma ordem de injeção inadequada.
+
+A validação verifica a estrutura dos documentos e a compatibilidade das informações utilizadas no carregamento. Entre os aspectos considerados estão a identificação das amostras, a organização dos campos, a interpretação dos valores e a disponibilidade dos metadados exigidos pelo processamento.
+
+Os problemas encontrados são representados por registros que contêm código, severidade, mensagem e localização, quando disponível. As severidades distinguem erros, avisos e informações. Essa organização permite apresentar ao usuário a natureza do problema e o ponto do arquivo ao qual ele se refere.
+
+O procedimento reúne a lista de problemas identificados, em vez de interromper a avaliação na primeira ocorrência. Dessa forma, o usuário pode revisar as inconsistências em conjunto, reduzindo a necessidade de repetir a importação para descobrir problemas sucessivos.
+
+A validação também considera os rótulos dos grupos. A comparação pode utilizar uma forma canônica que elimina diferenças de pontuação e de uso de maiúsculas e minúsculas. Entretanto, esse procedimento não corrige automaticamente erros de digitação nem atribui novos significados aos rótulos. Alterações que exigem interpretação permanecem dependentes da avaliação do usuário.
+
+A importação não aplica correção de sinal, imputação ou normalização. Sua responsabilidade é interpretar os arquivos e verificar se a estrutura permite construir a matriz utilizada nas etapas seguintes. Essa separação evita que o carregamento modifique os valores científicos antes da definição do processamento.
+
+Quando são encontrados erros impeditivos, a entrada é recusada e os problemas são apresentados para correção. Os avisos permanecem disponíveis para avaliação, permitindo distinguir uma impossibilidade estrutural de processamento de uma condição que exige atenção metodológica.
+
+\subsection{Diagnóstico dos dados e escolha do corretor}
+\label{subsec:diagnostico-escolha-corretor}
+
+O diagnóstico avalia a matriz para identificar características relacionadas à qualidade e à variação sistemática do sinal. As amostras de controle de qualidade, denominadas QCs, constituem uma referência para essa avaliação, pois representam material utilizado para acompanhar a variação técnica ao longo da aquisição.
+
+O sistema calcula um perfil que reúne medidas como a dispersão dos QCs, seu desvio padrão relativo e a associação entre a variação observada e a ordem de injeção. Essas informações são utilizadas para caracterizar padrões de comportamento e fundamentar as propostas de processamento.
+
+A classificação distingue situações como deriva gradual, mudança em degrau, comportamento errático e ausência de evidência suficiente de erro sistemático relevante. Também contempla a impossibilidade de avaliação quando as condições disponíveis não sustentam uma classificação adequada.
+
+A classificação é realizada por uma cascata ordenada de regras. A ordem das verificações faz parte do método, pois determina quais condições são avaliadas primeiro e como os casos são encaminhados. Os limiares utilizados constituem parâmetros da política implementada e não devem ser interpretados como critérios universais para qualquer estudo metabolômico.
+
+O diagnóstico pode produzir sugestões de fronteiras de lote a partir de mudanças observadas na trajetória dos QCs. Essas fronteiras são apresentadas como propostas para avaliação do profissional. A identificação computacional de uma mudança no sinal não comprova, isoladamente, a existência de um lote experimental distinto.
+
+A escolha do corretor considera três alternativas: manutenção do sinal sem correção, correção por regressão local e correção baseada em floresta aleatória. A alternativa sem correção permite conservar a matriz como referência e evita pressupor que toda entrada necessariamente se beneficia de uma transformação corretiva.
+
+O apoio à escolha apresenta duas operações distintas. A primeira produz uma estimativa de corretor a partir do perfil da matriz e da política disponível. A segunda executa as alternativas e compara os resultados por critérios de avaliação. A estimativa utiliza informações previamente aprendidas ou definidas; a comparação mede o comportamento dos métodos sobre os dados apresentados.
+
+Essa distinção possui consequências para o tempo de processamento e para a interpretação da resposta. Uma estimativa pode ser obtida com menor custo computacional, mas não equivale à execução dos corretores sobre a matriz. A medição exige realizar os tratamentos e calcular os indicadores correspondentes.
+
+O usuário pode selecionar o método e sobrescrever a proposta automática. A configuração aplicada e a origem da decisão são registradas, permitindo distinguir uma escolha produzida pelo sistema de uma escolha manual.
+
+A recomendação automática é apresentada como apoio metodológico. Seu desempenho depende das condições de avaliação e do conjunto de dados utilizado, de modo que sua disponibilidade não representa garantia de generalização para diferentes estudos ou modos de aquisição.
+
+\subsection{Correção do sinal}
+\label{subsec:correcao-sinal}
+
+A correção do sinal busca reduzir a variação sistemática relacionada à aquisição, preservando as diferenças que serão posteriormente examinadas na análise dos dados. Essa operação precede a normalização e possui finalidade distinta: a correção utiliza o comportamento dos QCs para modelar componentes de variação técnica, enquanto a normalização atua sobre outras propriedades da matriz.
+
+A implementação oferece os métodos \texttt{none}, \texttt{loess} e \texttt{serrf}. O primeiro mantém os valores sem aplicar um corretor, permitindo utilizar a matriz original como referência de comparação.
+
+O método LOESS utiliza regressão local sobre o sinal dos QCs em função da ordem de injeção, considerando os lotes definidos para o processamento. A curva ajustada representa a variação estimada ao longo da corrida e é utilizada na obtenção dos valores corrigidos.
+
+Esse procedimento pressupõe que a variação técnica possa ser representada por uma trajetória suficientemente suave. A quantidade e a distribuição dos QCs influenciam a capacidade de estimar essa trajetória, especialmente nas regiões em que há menor suporte de observações.
+
+O método SERRF utiliza florestas aleatórias para estimar o comportamento de cada variável a partir de informações de aquisição e do comportamento de outras variáveis. O ajuste utiliza os QCs como referência, e as previsões participam do cálculo do sinal corrigido.
+
+A implementação em Python emprega os recursos de floresta aleatória do scikit-learn. Sua comparação com o código de referência em R considera que bibliotecas diferentes podem produzir ajustes diferentes mesmo quando o procedimento geral e os parâmetros são correspondentes. Por isso, a fidelidade das etapas e a qualidade da correção são avaliadas separadamente.
+
+Os corretores retornam a matriz resultante e informações sobre o tratamento realizado. Quando uma variável não pode ser corrigida, sua condição é acompanhada por uma causa registrada. Essa separação permite distinguir a aplicação efetiva do método das situações em que os valores foram preservados por impossibilidade de correção.
+
+As causas são contabilizadas no registro da etapa. O número total de variáveis presentes na saída, portanto, não é utilizado isoladamente como evidência de que todas foram corrigidas.
+
+As operações produzem novas estruturas de resultado, preservando a matriz de entrada. Essa organização permite comparar os valores antes e depois da correção e evita que uma tentativa de processamento elimine a referência utilizada na avaliação.
+
+A qualidade é examinada após a aplicação do método. A redução de um indicador não é considerada suficiente para afirmar que a correção foi adequada em todos os aspectos. A análise utiliza diferentes medidas e mantém explícito o ponto do processamento em que foram calculadas.
+
+\subsection{Pré-processamento dos dados}
+\label{subsec:pre-processamento-dados}
+
+O pré-processamento reúne as operações posteriores à correção do sinal. Seu objetivo é preparar a matriz para as análises, considerando a estabilidade das variáveis, a presença de valores ausentes e as diferenças de distribuição e escala.
+
+O fluxo estabelece uma ordem de aplicação, pois cada operação modifica as condições recebidas pela seguinte. A execução compreende filtragem, tratamento de ausência, imputação, normalização por amostra, transformação e escalonamento.
+
+A filtragem por desvio padrão relativo dos QCs remove variáveis que não atendem ao corte selecionado. O cálculo identifica a variante e o estimador utilizados, pois valores obtidos por procedimentos diferentes não representam necessariamente a mesma quantidade.
+
+Os descartes por RSD acima do corte são separados dos casos em que a medida é indefinida. A primeira situação indica que foi possível medir a variabilidade e compará-la ao critério; a segunda indica ausência de uma medida válida para essa comparação. A distinção é preservada nas contagens da etapa.
+
+O sistema também dispõe de filtragem de variáveis com variância próxima de zero. Essa operação identifica atributos com pouca informação de variação nas condições avaliadas, evitando que sejam tratados como variáveis informativas apenas por estarem presentes na matriz.
+
+O tratamento de valores ausentes considera sua proporção dentro dos grupos experimentais. Uma variável é removida quando a ausência excede o limiar em todos os grupos. A manutenção de variáveis bem medidas em pelo menos um grupo permite preservar situações em que a ausência apresenta associação com a classificação experimental.
+
+Após a filtragem, a imputação preenche os valores ausentes conforme o método selecionado. Entre as alternativas implementadas estão procedimentos baseados em valores mínimos, média, mediana e vizinhos mais próximos. A escolha do método faz parte da especificação de processamento e permanece registrada.
+
+Os zeros e os valores ausentes exigem tratamento explícito, pois não representam necessariamente a mesma condição. A interpretação adotada pelo processamento deve considerar a representação do arquivo e o procedimento selecionado, evitando substituir automaticamente toda ocorrência de zero por um valor imputado.
+
+A normalização por amostra atua sobre diferenças globais entre as linhas da matriz. Entre as opções disponíveis estão normalização por soma, mediana, quantis e procedimentos baseados em quocientes. A aplicação depende da configuração escolhida e das condições exigidas pelo método.
+
+A transformação atua sobre a distribuição dos valores. O sistema inclui alternativas como logaritmo, raiz quadrada e raiz cúbica, além da possibilidade de manter os valores sem transformação. Cada operação possui condições matemáticas que precisam ser atendidas pela matriz recebida.
+
+O escalonamento atua sobre as variáveis e modifica sua contribuição relativa nas análises. Entre as opções estão centralização pela média, autoescalonamento e escalonamento de Pareto. A seleção pode alterar os resultados de métodos baseados em variância ou distância e, por esse motivo, integra o registro metodológico da execução.
+
+Os parâmetros não são reunidos sob uma única operação genérica de normalização. A separação entre normalização por amostra, transformação e escalonamento permite identificar precisamente o que foi aplicado e compreender os efeitos de cada escolha.
+
+\subsection{Processamento por etapas e resultados intermediários}
+\label{subsec:processamento-etapas}
+
+O processamento foi organizado em etapas para preservar a sequência das operações e permitir examinar os efeitos produzidos ao longo do fluxo. Cada etapa recebe a matriz resultante da anterior e devolve uma nova matriz acompanhada de informações sobre sua execução.
+
+Essa organização mantém separados os resultados da correção e os resultados do pipeline completo. A matriz corrigida permite avaliar o efeito do corretor antes das transformações posteriores. A matriz processada incorpora os filtros, o tratamento de ausência e as operações de normalização selecionadas.
+
+A distinção entre esses resultados é necessária porque uma transformação posterior pode modificar a escala e o significado das medidas utilizadas para avaliar a correção. Uma métrica calculada sobre intensidades corrigidas não deve ser interpretada automaticamente da mesma forma quando calculada sobre valores transformados e escalonados.
+
+Os registros das etapas incluem as contagens de variáveis recebidas e mantidas. Quando ocorre descarte, as contagens permitem identificar em qual operação houve redução da matriz. Na correção, também são registradas as quantidades de variáveis não corrigidas por causa.
+
+Esse acompanhamento torna visíveis alterações que, em um fluxo manual, poderiam ocorrer sem registro. A redução do conjunto de variáveis passa a ser associada a um procedimento e a um parâmetro, permitindo revisar o efeito dos critérios escolhidos.
+
+O registro reexecutável reúne a especificação e as sementes utilizadas. Dessa forma, as etapas não são descritas apenas por seus nomes: o contexto de sua aplicação é preservado, permitindo identificar os parâmetros responsáveis pelo resultado.
+
+Os resultados intermediários apoiam a inspeção e a geração de artefatos nos pontos disponibilizados pelo sistema. Essa organização não implica que toda matriz produzida internamente seja armazenada permanentemente no banco. A persistência mantém os registros previstos no modelo, enquanto os valores científicos são disponibilizados pelos arquivos correspondentes.
+
+A preservação da entrada e a produção de novas matrizes também favorecem a comparação entre estados. O profissional pode avaliar a condição inicial, o resultado da correção e o resultado final sem que uma etapa sobrescreva silenciosamente a referência anterior.
+
+\subsection{Análises estatísticas, métricas e gráficos}
+\label{subsec:analises-metricas-graficos}
+
+As análises estatísticas e as métricas são utilizadas para avaliar o comportamento dos dados e os efeitos do processamento. Sua implementação permite examinar aspectos de repetibilidade, dispersão, estrutura multivariada e diferenças entre grupos.
+
+As métricas de qualidade incluem medidas calculadas sobre os QCs e sobre as amostras. O RSD dos QCs participa da avaliação da repetibilidade, enquanto medidas de dispersão e de estrutura complementam a interpretação. O conjunto de indicadores permite observar situações em que os métodos apresentam comportamentos diferentes conforme o aspecto avaliado.
+
+Cada medida deve ser interpretada junto à população e ao ponto do processamento utilizados em seu cálculo. A quantidade de variáveis, a seleção de amostras, o estimador e a transformação aplicada influenciam seu significado. Por isso, os resultados são apresentados com informações que permitem reconhecer essas condições.
+
+A análise de componentes principais, ou PCA, é utilizada para explorar a estrutura multivariada da matriz. Seus resultados permitem examinar a distribuição das amostras, o comportamento dos QCs e a contribuição das variáveis para os componentes.
+
+Os gráficos associados à PCA incluem projeções das amostras, cargas das variáveis e variância explicada. A identificação dos QCs na projeção permite examinar sua dispersão em relação às demais amostras, contribuindo para a avaliação da variação técnica.
+
+As análises univariadas examinam diferenças entre grupos por variável. O sistema incorpora procedimentos paramétricos e não paramétricos, incluindo análises para comparações entre múltiplos grupos. A escolha e a interpretação do teste consideram as condições avaliadas pelo procedimento.
+
+A correção para múltiplos testes é aplicada para controlar a taxa de falsas descobertas. Os resultados ajustados são identificados como valores-q, mantendo a distinção em relação aos valores-p obtidos nos testes individuais.
+
+A análise discriminante por mínimos quadrados parciais, ou PLS-DA, é acompanhada de validação cruzada e teste de permutação. Esses procedimentos avaliam o comportamento preditivo e ajudam a evitar que a separação observada no ajuste seja interpretada, isoladamente, como evidência de capacidade de generalização.
+
+Os gráficos do PLS-DA incluem projeções, cargas e importância das variáveis. Os indicadores de validação acompanham sua apresentação, permitindo interpretar a representação visual junto ao desempenho avaliado.
+
+O sistema também incorpora classificadores como Random Forest e SVM, além de PERMANOVA sobre a representação em componentes principais. Essas análises ampliam os recursos de avaliação, mas seus resultados permanecem dependentes do desenho do estudo e das condições de validação utilizadas.
+
+Os gráficos de qualidade incluem representações das distribuições, comparações entre estados do processamento e medidas de variação por variável ou grupo. Sua finalidade é permitir a inspeção de padrões que uma tabela de indicadores agregados pode ocultar.
+
+A interface permite visualizar as figuras e exportá-las para utilização em relatórios e apresentações. A geração utiliza as fontes de dados correspondentes ao resultado selecionado, mantendo a associação entre a figura e o processamento que a produziu.
+
+As análises computacionais não realizam a identificação química das variáveis nem confirmam seu significado biológico. Uma variável representada por tempo de retenção e razão massa/carga continua sendo um sinal analítico. A interpretação bioquímica exige procedimentos e evidências adicionais conduzidos pelos profissionais responsáveis.
+
+\subsection{Exportação dos resultados}
+\label{subsec:exportacao-resultados}
+
+A exportação disponibiliza os dados tratados em arquivos que podem ser utilizados fora do aplicativo. O sistema distingue a matriz corrigida, a matriz processada e o arquivo preparado para o MetaboAnalyst, permitindo selecionar o resultado correspondente ao ponto de interesse.
+
+A matriz corrigida contém o resultado da aplicação do corretor, enquanto a matriz processada incorpora as operações posteriores do pipeline. Essa distinção permite encaminhar artefatos diferentes conforme a análise que será realizada pelo profissional.
+
+A exportação para o MetaboAnalyst organiza os dados no formato previsto pelo fluxo de interoperabilidade. O aplicativo prepara o arquivo, e seu envio à plataforma é realizado pelo usuário. A exportação não corresponde a uma transferência automática da matriz para um serviço externo.
+
+O procedimento adota um limite de 5.000 variáveis para o arquivo destinado ao MetaboAnalyst. Quando o conjunto excede esse limite, a seleção utiliza ordenação fundamentada no RSD dos QCs, preservando o critério utilizado para reduzir a matriz.
+
+As variáveis removidas e o motivo do corte devem permanecer identificáveis no registro da exportação. Dessa forma, a redução não é realizada como uma alteração manual sem procedência, e o profissional pode verificar quais sinais foram excluídos para atender ao formato de destino.
+
+Os identificadores das variáveis são preservados de forma compatível com a escrita do arquivo, permitindo relacionar os resultados às informações de origem. Essa correspondência é necessária para que o profissional possa retornar ao fluxo de identificação no Progenesis QI.
+
+A exportação não transforma automaticamente os identificadores dos sinais em nomes de metabólitos. A identificação de compostos permanece uma atividade distinta do tratamento da matriz, conduzida com ferramentas e evidências apropriadas.
+
+Os artefatos exportados complementam os registros de execução. Sua conservação permite manter os valores efetivamente encaminhados para análise, enquanto o histórico preserva a configuração e as decisões associadas à sua produção.
+
+\subsection{Acompanhamento e cancelamento das execuções}
+\label{subsec:acompanhamento-cancelamento}
+
+As operações de maior duração são executadas por meio de um mecanismo de trabalhos, permitindo acompanhar o processamento sem manter a interação limitada a uma chamada síncrona. Ao iniciar uma operação, o sistema fornece um identificador utilizado nas consultas posteriores.
+
+A interface utiliza esse identificador para recuperar o estado do trabalho e as informações de progresso disponíveis. Após a conclusão, o mesmo mecanismo permite obter o resultado ou reconhecer a ocorrência de falha.
+
+O acompanhamento é apresentado em uma área de trabalhos em curso, acessível durante a utilização do aplicativo. Essa organização permite consultar operações iniciadas sem restringir a visualização ao painel em que foram solicitadas.
+
+O progresso representa o avanço informado pelo processamento. Sua granularidade depende dos pontos de atualização existentes na operação executada. Assim, a indicação de progresso não deve ser interpretada como estimativa exata do tempo restante.
+
+O mecanismo distingue a conclusão, a falha e o cancelamento. Uma operação cancelada não é apresentada como processamento concluído, e uma falha não permanece representada apenas por um contador que deixou de avançar. O estado terminal permite informar ao usuário o desfecho da solicitação.
+
+O cancelamento permite interromper uma operação que não precisa continuar, como uma execução iniciada com parâmetros inadequados. A solicitação é encaminhada ao trabalho correspondente, e sua efetivação depende dos pontos em que o processamento verifica e atende ao pedido.
+
+Por esse motivo, o cancelamento não implica encerramento instantâneo de qualquer cálculo em andamento. O trabalho pode precisar alcançar um ponto de verificação antes de finalizar. A interface deve representar a condição da solicitação sem antecipar a conclusão da interrupção.
+
+Os resultados apresentados também precisam corresponder à solicitação atual. O início de um novo trabalho ou a alteração das condições utilizadas invalida a apresentação de resultados anteriores quando eles deixam de representar a configuração selecionada.
+
+O acompanhamento integra a execução científica à interação com o usuário. Ao permitir consultar o progresso, recuperar os resultados e distinguir os desfechos, o sistema oferece controle sobre operações que podem demandar maior tempo computacional, preservando a relação entre a solicitação realizada e o resultado disponibilizado.
+
+\section{Interface e distribuição da aplicação}
+\label{sec:interface-distribuicao}
+
+A interface do Refino foi desenvolvida para disponibilizar as funcionalidades de tratamento de dados metabolômicos aos profissionais do laboratório por meio de um aplicativo Windows. Sua organização acompanha o fluxo de trabalho, desde a seleção dos arquivos até a avaliação e a exportação dos resultados, permitindo utilizar os recursos sem executar comandos ou configurar manualmente o ambiente de desenvolvimento.
+
+A aplicação utiliza uma interface gráfica construída com PySide6. Os componentes visuais se comunicam com uma API interna, iniciada pelo próprio aplicativo em endereço local. Essa organização mantém a apresentação separada dos procedimentos científicos e permite que as operações sejam executadas por uma camada comum de processamento.
+
+A distribuição é realizada em uma pasta que contém o executável e suas dependências. O usuário extrai o pacote e inicia o aplicativo por meio do arquivo \texttt{refino.exe}, sem precisar instalar o interpretador Python ou configurar um servidor de banco de dados. A persistência local utiliza SQLite, integrado ao funcionamento da aplicação.
+
+\subsection{Organização das telas e fluxo de utilização}
+\label{subsec:organizacao-telas-fluxo}
+
+A interface é organizada em abas que agrupam as operações conforme sua finalidade. O fluxo principal compreende a preparação do estudo, a configuração e a execução do tratamento, a avaliação da qualidade e a inspeção dos gráficos. Uma área fixa de trabalhos em curso permite acompanhar as operações iniciadas durante a utilização do aplicativo.
+
+A aba \textit{Preparar o estudo} concentra a seleção dos arquivos de entrada e a verificação das informações necessárias ao processamento. Nesse ponto, o usuário informa a matriz de medições e a lista de amostras correspondentes. A aplicação utiliza essas entradas para associar os valores medidos aos metadados, incluindo a ordem de injeção.
+
+Após a seleção, o usuário pode solicitar a validação dos arquivos. Os problemas identificados são apresentados antes da execução do tratamento, permitindo revisar as inconsistências e corrigir as entradas. Essa posição da validação no fluxo evita que falhas estruturais sejam percebidas apenas durante operações de maior duração.
+
+O diagnóstico acrescenta informações sobre o comportamento da matriz e dos controles de qualidade. Seus resultados auxiliam a escolha do método de correção e a avaliação de possíveis fronteiras de lote. As sugestões produzidas pelo sistema permanecem sujeitas à revisão do profissional.
+
+A aba \textit{Corrigir e levar o resultado} reúne os controles de configuração e execução do processamento. O usuário pode selecionar o corretor e definir as operações posteriores, como filtragem, tratamento de valores ausentes, normalização, transformação e escalonamento. Também pode utilizar os recursos de apoio à escolha do método, considerando a distinção entre uma estimativa e uma comparação obtida pela execução das alternativas.
+
+A configuração aplicada integra o registro da execução. A organização dos controles permite relacionar o resultado aos parâmetros escolhidos, evitando que o processamento seja apresentado como uma operação única cujas decisões internas não possam ser identificadas.
+
+A aba \textit{Qualidade do resultado} apresenta os indicadores utilizados na avaliação do tratamento. As informações são agrupadas por tema, permitindo examinar diferentes aspectos da matriz sem reduzir a qualidade a uma única medida. A apresentação considera o ponto do processamento e as condições em que cada indicador foi calculado.
+
+A aba \textit{Gráficos} disponibiliza as representações visuais dos dados e das análises. O usuário seleciona a figura de interesse e examina aspectos como distribuição dos valores, dispersão dos controles de qualidade, estrutura multivariada e diferenças entre grupos. As figuras também podem ser exportadas para utilização em relatórios e apresentações.
+
+A aba \textit{O que este aplicativo NÃO faz} explicita os limites das funcionalidades. Essa informação integra o fluxo de utilização porque o tratamento computacional de uma matriz não equivale à identificação de compostos, à confirmação de significado biológico ou à validação clínica dos resultados.
+
+O executável também contém as abas \textit{Multiverso (beta)} e \textit{Vias metabólicas (beta)}. Esses recursos permanecem classificados como funcionalidades experimentais e trabalhos futuros, fora do fluxo principal considerado na entrega ao laboratório e no escopo deste trabalho.
+
+A área \textit{Trabalhos em curso} permanece disponível durante a navegação. Ela permite consultar o estado das operações e solicitar o cancelamento dos trabalhos que não precisam continuar. Dessa forma, o acompanhamento não fica restrito à aba em que a execução foi iniciada.
+
+O fluxo principal de utilização pode ser organizado nas seguintes etapas:
+
+\begin{enumerate}
+    \item selecionar a matriz de medições e a lista de amostras;
+    \item validar os arquivos e revisar os problemas identificados;
+    \item examinar o diagnóstico e as sugestões de processamento;
+    \item definir o corretor e os parâmetros de pré-processamento;
+    \item iniciar a execução e acompanhar seu andamento;
+    \item avaliar as métricas e os gráficos disponíveis;
+    \item exportar o resultado correspondente ao ponto de processamento desejado.
+\end{enumerate}
+
+Essa sequência estabelece uma relação entre preparação, execução e avaliação. A exportação ocorre após a definição do procedimento e a obtenção de seus resultados, permitindo que o profissional examine o tratamento antes de encaminhar os dados às análises seguintes.
+
+\subsection{Apresentação dos resultados e mensagens ao usuário}
+\label{subsec:resultados-mensagens}
+
+A apresentação dos resultados busca tornar identificáveis o procedimento aplicado, as medidas calculadas e as condições que limitam sua interpretação. A interface combina informações textuais, indicadores, tabelas e gráficos, utilizando cada representação conforme o tipo de conteúdo.
+
+Os problemas de validação são apresentados com identificação e descrição. A distinção entre erro, aviso e informação permite reconhecer a gravidade da ocorrência e compreender se ela impede o processamento ou exige avaliação adicional. Quando disponível, a localização do problema facilita sua revisão no arquivo de origem.
+
+As mensagens evitam tratar toda ocorrência como uma falha equivalente. Uma entrada incompatível, uma condição que exige atenção e uma operação cancelada possuem significados diferentes e precisam ser representadas de forma correspondente.
+
+As propostas automáticas são acompanhadas de justificativas, permitindo que o usuário examine a base da escolha antes de aceitá-la ou modificá-la. A possibilidade de sobrescrita mantém o controle metodológico com o profissional e permite registrar sua participação no processo.
+
+A interface distingue a estimativa de corretor da medição realizada pela execução das alternativas. Essa separação impede que uma resposta produzida por uma política ou modelo seja interpretada como resultado de um ensaio que não foi executado sobre a matriz atual.
+
+As métricas são apresentadas com informações que contextualizam seu significado. A identificação do estimador, da população considerada e do ponto de processamento permite reconhecer o que foi medido. Essa contextualização é necessária porque indicadores com o mesmo nome podem assumir interpretações diferentes conforme o procedimento utilizado.
+
+A organização por temas facilita a leitura do conjunto de medidas. Indicadores de repetibilidade, dispersão e estrutura dos dados são examinados de forma complementar. Uma melhoria isolada não é apresentada como comprovação de que todos os aspectos do tratamento foram aprimorados.
+
+Os resultados das análises multivariadas são acompanhados das informações necessárias à interpretação. No caso de métodos supervisionados, as medidas de validação participam da apresentação, evitando que a separação visual entre grupos seja utilizada isoladamente como evidência de capacidade preditiva.
+
+Os gráficos preservam a identificação dos grupos e dos controles de qualidade quando essas informações participam da análise. Títulos, eixos e legendas indicam as quantidades representadas, permitindo relacionar a figura aos dados utilizados em sua construção.
+
+Quando uma figura não pode ser produzida com as informações disponíveis, a interface apresenta essa condição. A ausência de dados necessários não deve resultar na exibição de uma imagem que sugira uma análise válida ou na manutenção de uma figura pertencente a uma execução anterior.
+
+A apresentação também acompanha o estado dos trabalhos. Uma operação em andamento é diferenciada de uma operação concluída, cancelada ou encerrada com falha. O resultado é disponibilizado de acordo com o desfecho correspondente, mantendo a associação entre a solicitação e o artefato recuperado.
+
+As mensagens sobre cancelamento consideram que a solicitação pode depender de um ponto de verificação do processamento para ser atendida. Por isso, solicitar a interrupção e concluir o cancelamento são condições distintas.
+
+As limitações metodológicas permanecem visíveis ao usuário. O aplicativo trata matrizes de sinais analíticos e fornece recursos de avaliação computacional, mas a interpretação científica exige considerar o desenho do estudo e as evidências disponíveis. A apresentação dos resultados deve preservar essa distinção.
+
+\subsection{Empacotamento e distribuição para Windows}
+\label{subsec:empacotamento-windows}
+
+O empacotamento foi realizado com PyInstaller, que reúne o código da aplicação, o interpretador Python, as bibliotecas e os recursos necessários à execução. O pacote resultante utiliza o formato de diretório, contendo o arquivo \texttt{refino.exe} e os componentes que sustentam seu funcionamento.
+
+A distribuição em pasta permite iniciar a aplicação após a extração do arquivo compactado. O usuário não precisa instalar Python, executar comandos de preparação do ambiente ou configurar um servidor de banco de dados para utilizar o fluxo principal.
+
+O executável inicia a interface gráfica e a API interna utilizada para acionar as funcionalidades. A comunicação ocorre em endereço local, e o aplicativo administra a inicialização dos componentes necessários. O banco SQLite atende à persistência sem depender de um serviço externo.
+
+O conteúdo distribuído inclui as bibliotecas numéricas, os componentes da interface e os recursos utilizados na apresentação dos resultados. A seleção dos componentes considera as dependências efetivamente necessárias ao aplicativo, evitando incorporar ao pacote todo o ambiente de desenvolvimento.
+
+O processo de empacotamento exige verificar o comportamento do produto gerado. A execução pelo código-fonte e a execução pelo aplicativo congelado possuem diferenças relacionadas à localização dos recursos, ao carregamento de bibliotecas e à disponibilidade de arquivos auxiliares. Por esse motivo, a verificação considera o funcionamento dentro da própria pasta de distribuição.
+
+Entre os aspectos avaliados estão a abertura da janela, a disponibilidade das funcionalidades, a geração dos artefatos e a apresentação dos gráficos. Essas verificações permitem identificar problemas que não seriam observados apenas pela execução dos testes no ambiente de desenvolvimento.
+
+A apresentação de textos também é considerada no produto empacotado. Mensagens e conteúdos com caracteres acentuados precisam permanecer legíveis no executável, preservando a compreensão das instruções e dos resultados pelo usuário.
+
+O pacote público exclui os arquivos produzidos durante a utilização, incluindo o banco de dados, os registros de execução em arquivo e a pasta de saídas. Esses elementos podem conter informações associadas às amostras e não são necessários para distribuir o programa.
+
+A separação entre aplicação e dados evita que uma cópia utilizada no desenvolvimento seja publicada com resultados ou metadados do laboratório. O material distribuído contém os componentes de software necessários à execução, enquanto os arquivos do estudo são fornecidos e utilizados no contexto apropriado.
+
+A distribuição é acompanhada de instruções de utilização em um arquivo de leitura inicial. Esse material orienta a extração do pacote e a abertura do executável, permitindo que o usuário identifique o ponto de entrada da aplicação.
+
+As versões distribuídas recebem identificação própria e podem ser relacionadas ao estado do código-fonte utilizado em sua geração. A conferência por soma de verificação permite comparar a integridade do arquivo compactado com o artefato produzido no empacotamento.
+
+O aplicativo não utiliza instalador nem assinatura de código. Essas características fazem parte do formato de distribuição adotado e são informadas ao usuário. A utilização ocorre diretamente a partir da pasta extraída, que precisa conter os recursos necessários e permitir as operações locais de escrita realizadas pelo sistema.
+
+Os recursos experimentais presentes no executável permanecem identificados como beta. Sua inclusão no pacote não altera o escopo das funcionalidades consideradas na entrega principal, nem transforma seu uso em requisito para executar o tratamento das matrizes.
+
+\subsection{Repositório do código-fonte}
+\label{subsec:repositorio-codigo-fonte}
+
+O código-fonte do Refino é mantido em um repositório com controle de versão Git. O versionamento permite acompanhar as alterações realizadas durante o desenvolvimento e identificar o estado do projeto utilizado na geração de uma versão da aplicação.
+
+O repositório reúne o código da interface, os componentes de processamento, os módulos de persistência, as migrações, os testes e os scripts de empacotamento. Também contém os materiais necessários à compreensão da organização do projeto e à preparação do ambiente de desenvolvimento.
+
+A estrutura separa os componentes por responsabilidade, distinguindo o domínio, as operações científicas, a entrada e saída de arquivos, a persistência e a apresentação. Essa organização facilita a localização das funcionalidades e permite relacionar alterações aos componentes afetados.
+
+Os registros de versão contribuem para a manutenção e a rastreabilidade técnica. Uma versão distribuída pode ser associada a um estado específico do código, permitindo identificar quais alterações estão presentes no executável correspondente.
+
+O código adota a licença GPL-3.0-or-later. A licença do software não abrange automaticamente os dados científicos utilizados no desenvolvimento. Os arquivos pertencentes ao laboratório exigem tratamento separado e não devem ser considerados disponíveis para redistribuição apenas por terem sido utilizados na avaliação da aplicação.
+
+O endereço do repositório do projeto é apresentado a seguir:
+
+\begin{quote}
+    \textbf{Repositório do código-fonte:} [INSERIR LINK DO REPOSITÓRIO]
+\end{quote}
+
+% Substituir o marcador pelo endereço definitivo.
+% Caso o documento utilize o pacote hyperref, pode-se empregar:
+% \url{ENDERECO_DO_REPOSITORIO}
+
+\section{Síntese do desenvolvimento}
