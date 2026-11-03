@@ -1,0 +1,218 @@
+# ==================================================
+# TeX Live / LaTeX / abnTeX2
+# ==================================================
+
+# Compilacao basica
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+
+# PDFs e arquivos intermediarios
+*.pdf
+*.dvi
+*.xdv
+.pdf
+*-converted-to.*
+
+# Latexmk e sincronizacao
+*.fdb_latexmk
+*.synctex
+*.synctex.gz
+*.synctex(busy)
+*.synctex.gz(busy)
+*.pdfsync
+*.rubbercache
+rubber.cache
+
+# BibTeX / BibLaTeX / Biber
+*.bbl
+*.blg
+*.bcf
+*.bbl-SAVE-ERROR
+*.bcf-SAVE-ERROR
+*.run.xml
+*-blx.aux
+*-blx.bib
+
+# Indices
+*.idx
+*.ilg
+*.ind
+*.lpz
+
+# Glossarios e siglas
+*.acn
+*.acr
+*.glg
+*.glg-abr
+*.glo
+*.glo-abr
+*.gls
+*.gls-abr
+*.glsdefs
+*.glstex
+*.lzo
+*.lzs
+*.slg
+*.slo
+*.sls
+
+# Nomenclaturas
+*.nlg
+*.nlo
+*.nls
+
+# Hyperref
+*.brf
+
+# Beamer
+*.nav
+*.snm
+*.vrb
+*.pre
+
+# Algoritmos e listagens
+*.alg
+*.loa
+*.lol
+*.loe
+*.listing
+
+# Tabelas, notas e pacotes auxiliares
+*.thm
+*.atfi
+*.soc
+*.loc
+*.cut
+*.cpt
+*.ent
+*.lox
+*.mw
+*.wrt
+*.sta
+*.spl
+*.hd
+*.ptc
+
+# Minindices
+*.maf
+*.mlf
+*.mlt
+*.mtc[0-9]*
+*.slf[0-9]*
+*.slt[0-9]*
+*.stc[0-9]*
+
+# TikZ / PGF
+*.dpth
+*.md5
+*.auxlock
+*-tikzDictionary
+
+# Minted / Pygments
+_minted*/
+*.data.minted
+*.pyg
+
+# PythonTeX
+*.pytxcode
+pythontex-files-*/
+
+# SageTeX
+*.sagetex.sage
+*.sagetex.py
+*.sagetex.scmd
+
+# SymPy
+*.sout
+*.sympy
+sympy-plots-for-*.tex/
+
+# Todonotes
+*.tdo
+*.lod
+
+# Xcolor
+*.xcp
+
+# Xindy
+*.xdy
+
+# XMP
+*.xmpi
+
+# XY-pic
+*.xyc
+*.xyd
+
+# PDF comments e anexos
+*.upa
+*.upb
+*.pax
+*.newpax
+*.pdfpc
+
+# HTLaTeX
+*.4ct
+*.4tc
+*.idv
+*.lg
+*.trc
+*.xref
+
+# ConTeXt
+*.tuc
+*.tui
+*.tuo
+
+# GregorioTeX
+*.gaux
+*.glog
+*.gtex
+
+# Endfloat
+*.ttt
+*.fff
+
+# Outros pacotes
+*.hst
+*.ver
+*.ltjruby
+*.xwm
+
+# Diretorios de compilacao
+latex.out/
+build/
+aux/
+out/
+svg-inkscape/
+
+# Arquivos temporarios dos editores
+*.bak
+*.bak[0-9]*
+*.backup
+*.sav
+*.swp
+*.swo
+*.tmp
+*.temp
+*.tps
+*.lyx~
+*.texpadtmp
+*~
+TSWLatexianTemp*
+
+# Arquivos especificos gerados
+*-concordance.tex
+*-gnuplottex-*
+*-tags.tex
+acs-*.bib
