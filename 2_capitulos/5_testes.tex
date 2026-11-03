@@ -1,15 +1,760 @@
-% ----------------------------------------------------------
-% Testes
-% 
-% ----------------------------------------------------------
+% Capítulo 5, «Testes». GERADO de docs/capitulo-5-testes.md (repositório refino-quimiometrico),
+% em 03/11/2026, do commit 20d89fdc do .md. Os comentários abaixo trazem a
+% procedência de cada número; não aparecem no PDF.
+% As escolhas feitas na montagem estão no cabeçalho daquele arquivo.
 
-\chapter[Testes]{Testes}
+% Folga de espaçamento só neste capítulo, para nenhuma linha passar da margem.
+\begingroup\setlength{\emergencystretch}{3em}
 
-Quais resultados foram obtidos depois dos testes. Estes
-resultados devem ser avaliados, considerando o referencial feito anteriormente.
+\chapter{Testes}\label{cap:testes}
 
-\section{Planos de Testes}
+Este capítulo apresenta como o sistema foi verificado e quais resultados os testes produziram, avaliados contra o referencial do capítulo 2, como pede o modelo. A verificação é tratada aqui como parte do resultado, e não como etapa de encerramento: a ferramenta existe para apoiar decisões metodológicas, e uma afirmação dessas só vale se a própria ferramenta puder ser examinada com o mesmo rigor que ela aplica ao dado.
 
-\section{Cenários de Testes}
+Daí duas características que atravessam o capítulo. A primeira é que os resultados negativos são relatados com o número e a causa, e não omitidos. A segunda é que cada número vem acompanhado da população sobre a qual foi medido --- quantos modos cromatográficos, quantas \textit{features}, qual versão do programa ---, porque um número sem população não é comparável com nada.
 
+Os testes estão em duas categorias. A primeira são os testes do sistema, já executados e integrados ao desenvolvimento: a suíte automatizada, o teste de sistema caixa-preta sobre o executável e as medições que avaliam os resultados contra o referencial. A segunda é a avaliação com usuários do laboratório parceiro, que usam a ferramenta com um estudo do próprio laboratório e respondem a um formulário. O capítulo tem cinco seções: o plano de testes das duas categorias (\ref{sec:5-1}); os cenários executados (\ref{sec:5-2}) e os resultados avaliados contra o referencial (\ref{sec:5-3}), da primeira; a avaliação com usuários do laboratório (\ref{sec:5-4}), da segunda; e os limites da verificação (\ref{sec:5-5}). Duas funcionalidades presentes no executável --- a análise de multiverso e a predição e o enriquecimento de vias metabólicas --- ficaram fora do escopo deste trabalho e são tratadas como trabalho futuro; os testes que as exercitam continuam na suíte automatizada, como funcionalidades em versão beta, mas não são discutidos neste capítulo.
 
+% D523 (01/10/2026): multiverso e vias são trabalho futuro, beta no executável, fora do TCC.
+
+\section{Planos de Testes}\label{sec:5-1}
+
+\subsection{Os dois níveis do plano}\label{sec:5-1-1}
+
+A verificação foi organizada em dois níveis, que respondem perguntas diferentes e não se substituem:
+
+\begin{enumerate}
+\item \textbf{Regressão automatizada}, escrita junto com o código, com a ferramenta \texttt{pytest}: responde se cada parte do sistema faz o que a especificação diz, inclusive quando comparada ao pipeline de referência em R do laboratório.
+\item \textbf{Teste de sistema caixa-preta} sobre o executável para Windows, registrado na planilha de plano e fluxo de testes do grupo (plano PT-001): responde se o fluxo que o trabalho promete funciona de ponta a ponta, na máquina do usuário final.
+\end{enumerate}
+
+O próprio plano registra por que o primeiro nível não basta: entre as situações que não contam como aprovação está ``a suíte automatizada está verde'', porque ``verde é sobre o que a suíte cobre, e a cobertura é mais estreita que a afirmação''.
+
+% Planilha, aba «Plano de Teste», célula C26. Figura sugerida: o diagrama dos dois níveis, no
+% insumo (docs/monografia.md, 5.1.1).
+
+\subsection{Nível 1: a suíte automatizada}\label{sec:5-1-2}
+
+A especificação do sistema define sete camadas de teste (Tabela~\ref{tab:5-1}), cada uma com um marcador próprio e uma faixa de velocidade esperada. A configuração do projeto declara os marcadores em modo estrito --- um marcador digitado errado reprova a execução, em vez de não filtrar nada --- e fixa o piso de cobertura em 85\%.
+
+\begin{table}[htbp]
+\centering
+\caption{Camadas da suíte, na versão publicada em 25 de outubro de 2026}\label{tab:5-1}
+\normalsize
+\begin{tabularx}{\linewidth}{|>{\hsize=0.59\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.76\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.06\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=0.59\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|}
+\hline
+\textbf{Camada} & \textbf{O que verifica} & \textbf{Velocidade declarada} & \textbf{Testes} \\
+\hline
+Unitário & função isolada, com dados pequenos construídos para o teste & < 1 s & sem marcador próprio \\ \hline
+Propriedade & invariantes verificados sobre entradas geradas & < 10 s & 198 \\ \hline
+\textit{Golden} & comparação contra as saídas do pipeline de referência em R & < 60 s & 369 \\ \hline
+Integração & pipeline completo num modo cromatográfico real & minutos & 695 \\ \hline
+Sintético & recuperação de defeito plantado com magnitude conhecida & minutos & 40 \\ \hline
+Desempenho & orçamento de tempo & dezenas de minutos & 260 \\ \hline
+Oráculo em contêiner & execução do script R original e regeneração dos arquivos que ele produz & minutos, mais a construção da imagem & 47 \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{table}
+
+Os marcadores se sobrepõem --- um teste pode ser \textit{golden} e de desempenho ao mesmo tempo ---, de modo que a coluna não soma o total. Na mesma versão, a suíte tem \textbf{6.890} casos de teste, dos quais \textbf{6.595} compõem o conjunto executado antes de cada integração ao ramo principal; o restante são os testes de desempenho de longa duração e os que dependem de contêiner Docker.
+
+% pytest --collect-only -q no clone Linux (WSL2), 28/10/2026, sobre e889349, o commit da
+% windows-2026.10.25.1: 6.890 no total; 6.843 com -m "not docker" (47 na camada docker); 6.595 com
+% -m "not docker and not slow" — os mesmos 6.890 e 6.595 do README.md, recontados em D593; por
+% marcador, os números da tabela. A contagem anterior, de 04/10/2026 sobre 1562c8b, dava 6.516 e
+% 6.227.
+
+\textbf{Cobertura de código.} A medição mais recente é de \textbf{96\%}, contra o piso de 85\%: feita em 25/09/2026 no Windows, somando as quatro seleções em que a suíte precisa ser executada nessa plataforma (ver \ref{sec:5-5}), com 16.923 instruções, 559 delas não cobertas, e 3.718 ramos.
+
+% Insumo 5.1.2, «[ATUALIZADO 25/09/2026] Remedida: 96%»; docs/linha-de-base-windows.md, «A
+% COBERTURA MEDIDA PELAS QUATRO SELEÇÕES». A anterior, de 12/09, era 94,95%, antes da aba «Gráficos».
+
+\textbf{Princípios que o plano aplica.} São regras escritas do projeto, e são o que distingue a suíte de uma simples contagem de testes:
+
+\begin{itemize}
+\item \textbf{Não fabricar dado de teste no lugar de dado real.} Se um arquivo de referência falta, o teste é pulado com uma mensagem que nomeia o arquivo esperado; e uma contagem observada nos arquivos reais é testada sobre eles, e não sobre uma matriz gerada.
+\item \textbf{Não afrouxar uma tolerância para o teste passar.} Se a implementação está correta e o número não bate, o achado é registrado como divergência.
+\item \textbf{O teste negativo precisa ter sido visto deixar de acusar quando o defeito plantado é removido.} Um teste que acusa igual com e sem o defeito não verifica nada; o projeto chama de \textit{par causal} as duas execuções idênticas que diferem só pelo defeito plantado. A regra está escrita; não foi medido que todos os testes negativos a cumprem.
+\item \textbf{Determinismo.} Cada operação estocástica recebe semente explícita, e a mesma entrada com a mesma semente produz saída idêntica --- na mesma plataforma: entre Windows 11 e Linux, com as mesmas versões das bibliotecas, o RSD por \textit{feature} que a correção LOESS produz não é igual bit a bit (no modo \texttt{pos\_\allowbreak{}hilic}, 57 das 5.187 \textit{features} com RSD definido nas duas plataformas diferem além de 10$^{-9}$ em termos relativos, numa medição de 02/10/2026, com o LOESS anterior às correções de 24/10/2026 descritas em \ref{sec:5-3}). Com o LOESS corrigido, a contagem de \textit{features} que ele deixa sem correção também diferiu entre Windows e Linux em três dos quatro modos (no \texttt{pos\_\allowbreak{}hilic}, 1.442 e 1.445), mas com versões diferentes do Python (3.12.14 e 3.12.3), e por isso essa diferença não pode ser atribuída só à plataforma.
+\item \textbf{O oráculo em R é parcial, e em graus diferentes.} O caminho sem correção é oráculo exato; a correção por regressão local (\texttt{batch\_\allowbreak{}loess}) é exata só nas \textit{features} em que a curva ajustada não teve valor negativo; e a correção SERRF é oráculo apenas estatístico, porque o bloco correspondente do script original não fixa semente e substitui zeros por ruído aleatório. Cada critério tem, por isso, a tolerância do seu oráculo (ver \ref{sec:5-3-1}).
+\end{itemize}
+
+% CLAUDE.md, invioláveis 1, 2, 4 e 5, e regra 6; D539 (medição A4b) para o escopo do
+% determinismo; docs/medicoes-jh/resultados/intersecao_windows.json e intersecao_contenedor.json
+% (D593) para a contagem do LOESS corrigido.
+
+\textbf{Testes obrigatórios.} A especificação declara, fase a fase, \textbf{74} testes obrigatórios, conferidos por um teste automático: 67 com cobertura viva, 3 inertes, 3 pendentes e 1 lacuna.
+
+% docs/testes-obrigatorios.md, linha 94.
+
+\textbf{Testes sobre os próprios documentos.} Além do código, a suíte confere treze afirmações que os documentos do projeto fazem sobre o código --- por exemplo, que cada rota da interface de programação listada na documentação existe, e vice-versa, e que as contagens publicadas no \texttt{README.\allowbreak{}md} batem com a coleta real. É um ponto de método: a documentação de um sistema também é uma afirmação verificável, e deixá-la sem teste é o que a faz divergir do código.
+
+% IMPLEMENTACAO.md, §8.5.
+
+\textbf{Integração local, sem integração contínua.} O grupo decidiu não usar integração contínua depois de a cota gratuita se esgotar, em agosto de 2026. O sinal que autoriza integrar uma mudança ao ramo principal é local --- \texttt{make check} na linha de base conhecida da máquina, mais \texttt{make test-\allowbreak{}all} quando a mudança toca as camadas \textit{golden} ou de desempenho, e \texttt{make test-\allowbreak{}docker} quando toca a camada de contêiner ---, e cada commit registra qual verificação rodou. Os limites dessa régua estão em \ref{sec:5-5}.
+
+% D226 e D251.
+
+\subsection{Nível 2: o teste de sistema caixa-preta}\label{sec:5-1-3}
+
+\textbf{Identificação.} Plano PT-001. A versão 1.4, de 13/09/2026, registra a execução dos casos internos; a versão 1.5, de 04/10/2026, atualiza a parte da avaliação com usuários para o protocolo descrito em \ref{sec:5-4}, as versões 1.6, de 07/10/2026, e 1.7, de 21/10/2026, acompanham as mudanças do formulário, e a versão 1.8, de 03/11/2026, corrige o resultado esperado dos quatro casos reprovados por defeito do critério (\ref{sec:5-2-2}). Responsáveis: os seis integrantes do grupo. Orientador: Prof. Raphael Lopes De Souza.
+
+\textbf{Objetivo.} Em duas partes. A primeira é verificar que o sistema entregue executa, ponta a ponta e na máquina do usuário final, o fluxo prometido --- ler o par de arquivos, validar, diagnosticar, recomendar com justificativa, corrigir, medir a qualidade pelo conjunto completo de métricas e entregar os arquivos de saída --- e que esse fluxo é operável pelo público-alvo sem instalar Python, R, Docker ou banco de dados. A segunda é própria deste trabalho: verificar que o sistema não afirma mais do que mediu --- o número na tela vem com a população em que foi medido, e nenhum caminho devolve resultado estatístico sem a validação que o acompanha.
+
+\textbf{Tipos de teste.} Funcional (caixa-preta, pela janela); integração (janela, servidor local, núcleo e disco; e linha de comando, núcleo e disco); usabilidade (o uso pelo público-alvo, seguido de questionário; ver \ref{sec:5-4}); desempenho (tempo de abertura, custo por corretor e consumo de memória); compatibilidade (Windows 10 e 11, 64 bits, sem dependências instaladas); e segurança num recorte estreito: o servidor embutido só é alcançável da própria máquina.
+
+\textbf{Técnica.} Caixa-preta, com três classes de cenário por funcionalidade:
+
+\begin{itemize}
+\item \textbf{positivo:} o caminho do usuário, com os arquivos reais;
+\item \textbf{negativo:} uma entrada inválida plantada de propósito --- arquivos trocados de posição, modo cromatográfico declarado diferente do conteúdo, separador de milhar, linha com colunas a mais, célula não numérica, grupo inexistente ---, e o esperado não é ``dá erro'', mas a mensagem específica que nomeia o problema;
+\item \textbf{limite:} a maior matriz do estudo, com 6.035 sinais, acima do limite de 5.000 \textit{features} relatado pelo laboratório para a versão web do MetaboAnalyst; o corretor mais caro; e o cancelamento no meio de uma execução.
+\end{itemize}
+
+Duas regras de método valem para os casos do plano: o caso negativo precisa ter sido visto não acusar com o defeito removido, e o número registrado vem com a população em que foi medido.
+
+% Planilha, células C17 e C18. O limite de 5.000 é relato do laboratório, e não propriedade
+% conferida: o MetaboAnalystR 4.3.0 local leu 12.000 variáveis sem objeção (D297). Saíram a
+% classe-limite «grade completa» e o custo do multiverso (D523).
+
+\textbf{Dados de teste.} Os quatro pares de arquivos reais cedidos pelo laboratório, um por modo cromatográfico, com 68 injeções cada --- 7 controles de qualidade (QCs) e 61 amostras de estudo, em quatro grupos clínicos --- e 2.039 (\texttt{neg\_\allowbreak{}hilic}), 2.184 (\texttt{neg\_\allowbreak{}c18}), 2.572 (\texttt{pos\_\allowbreak{}c18}) e 6.035 (\texttt{pos\_\allowbreak{}hilic}) \textit{features}; cópias desses arquivos com um defeito plantado por cópia, para os casos negativos; e matrizes sintéticas, para os testes de recuperação com resposta conhecida. Pela regra do plano, os arquivos clínicos não são versionados nem saem da máquina de teste.
+
+% Planilha, C20. Grupos: 13 ATLL, 18 Asymptomatic, 14 HAMTSP e 16 NoHTLV. Histórico, se o grupo
+% quiser declará-lo aqui: os arquivos de entrada estiveram no repositório privado até 02/09/2026
+% (D368), e a planilha v1.4 trouxe três nomes de amostra até D532 (insumo, 3.3.1).
+
+\textbf{Critérios.} Para começar os testes internos, o executável precisa estar construído com a procedência registrada, os quatro pares conferidos por soma de verificação e a suíte na linha de base conhecida da máquina. A aplicação com o público-alvo exige, além disso, que os casos de prioridade alta estejam aprovados e que o termo de consentimento e o formulário estejam publicados e testados (\ref{sec:5-4}). Os testes se encerram quando os casos tiverem sido executados, nenhum caso de prioridade alta estiver reprovado sem defeito registrado e decisão escrita, nenhum defeito crítico estiver aberto, cada defeito de severidade alta estiver corrigido e reexecutado --- ou entregue como limitação por decisão do orientador ---, e ao menos três participantes do público-alvo tiverem usado o programa e respondido o formulário, com as respostas consolidadas. Há ainda uma condição de parada: se um resultado esperado não puder ser produzido por nenhuma implementação correta, o defeito é do critério, e o grupo para e relata, em vez de ajustar o número.
+
+% Planilha v1.5, C24, C25 e C26.
+
+\textbf{Fora do escopo.} A identificação de metabólitos; a análise de multiverso e a predição e o enriquecimento de vias metabólicas, tratados como trabalho futuro; a interface web; a validação biológica dos achados; o uso por vários usuários ao mesmo tempo; a autenticação; a assinatura digital e o instalador; e as fases da especificação que não fecham (ver \ref{sec:5-3-4}).
+
+\textbf{Produto sob teste.} Os casos internos foram executados sobre o executável congelado em 09/09/2026 (commit \texttt{e3b4d7e}). O executável publicado mais recente, na data desta redação, é outro: a versão \texttt{windows-\allowbreak{}2026.\allowbreak{}10.\allowbreak{}25.\allowbreak{}1}, de 25/10/2026 (commit \texttt{e889349}), que inclui as abas acrescentadas depois do teste, os consertos registrados até lá e as correções do SERRF, do LOESS e da validação da entrada de 24/10/2026 (\ref{sec:5-3}). Além disso, nem todo resultado obtido foi medido no executável: vários --- por exemplo os dos casos CT-VAL-001, CT-VAL-003, CT-ART-001, CT-ART-002, CT-QUA-001 e CT-TRB-001 ---, e as remedições de 13/09/2026, rodaram no ambiente de desenvolvimento, pela interface de programação no mesmo processo. A descrição deste nível como caixa-preta sobre o executável vale para os casos que a planilha registra terem rodado nele.
+
+% Planilha, C19, e aba «Fluxo de Teste», coluna K; a nota de publicação de D593
+% (windows-2026.10.25.1, congelada de e889349 e publicada às 15:14 UTC de 25/10/2026).
+
+\section{Cenários de Testes}\label{sec:5-2}
+
+\subsection{Os casos de teste}\label{sec:5-2-1}
+
+A Tabela~\ref{tab:5-2} resume os casos da aba ``Fluxo de Teste'' da planilha. A redação do cenário foi encurtada; os passos, os dados e os resultados completos estão na planilha. Os quatro casos da análise de multiverso (CT-MUL-001 a 004) foram executados e continuam na planilha, mas não entram aqui, porque a funcionalidade passou a trabalho futuro.
+
+\begin{table}[p]
+\centering
+\rotatebox{90}{\begin{minipage}{0.97\textheight}
+\centering
+\caption{Casos do teste de sistema}\label{tab:5-2}
+\normalsize
+\begin{tabularx}{\linewidth}{|l|>{\hsize=0.65\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|l|>{\hsize=1.35\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|l|l|l|}
+\hline
+\textbf{ID} & \textbf{Funcionalidade} & \textbf{Requisito} & \textbf{Cenário} & \textbf{Tipo} & \textbf{Prioridade} & \textbf{Resultado} \\
+\hline
+CT-APP-001 & Arranque e distribuição & RNF-01 & primeira abertura em máquina sem Python, R, Docker ou banco & Compatibilidade & P1 & Aprovado \\ \hline
+CT-APP-002 & Saídas pré-processadas & RNF-02 & a pasta \texttt{saidas/\allowbreak{}} traz os quatro modos processados, com procedência & Funcional & P2 & Aprovado \\ \hline
+CT-APP-003 & Empacotamento & RNF-03 & o portão de congelamento verifica o que viajou no executável & Integração & P1 & Reprovado \\ \hline
+CT-ARQ-001 & Preparar o estudo & RF-01 & escolher o par de arquivos, com um botão nomeado para cada um & Funcional & P1 & Aprovado \\ \hline
+CT-ARQ-002 & Preparar o estudo & RF-01 & NEGATIVO: os dois arquivos trocados de posição & Funcional & P1 & Aprovado \\ \hline
+CT-ARQ-003 & Preparar o estudo & RF-02 & NEGATIVO: modo declarado diferente do conteúdo & Funcional & P2 & Aprovado \\ \hline
+CT-VAL-001 & Validação & RF-02 & validação estrutural dos quatro modos reais & Integração & P1 & Aprovado \\ \hline
+CT-VAL-002 & Validação & RF-02 & NEGATIVO: corrupção plantada detectada, um código por defeito & Funcional & P1 & Reprovado \\ \hline
+CT-VAL-003 & Diagnóstico & RF-03 & classifica o defeito e sugere fronteiras de lote & Funcional & P1 & Aprovado \\ \hline
+CT-VAL-004 & Recomendação & RF-04 & recomendação com justificativa e valor já preenchido & Funcional & P1 & Aprovado \\ \hline
+CT-VAL-005 & Recomendação & RF-04 & ``medir qual corretor vence'' informa a duração antes de começar & Desempenho & P2 & Aprovado \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{minipage}}
+\end{table}
+
+\begin{table}[p]
+\centering
+\rotatebox{90}{\begin{minipage}{0.97\textheight}
+\centering
+\contcaption{(continuação)}
+\normalsize
+\begin{tabularx}{\linewidth}{|l|>{\hsize=0.65\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|l|>{\hsize=1.35\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|l|l|l|}
+\hline
+\textbf{ID} & \textbf{Funcionalidade} & \textbf{Requisito} & \textbf{Cenário} & \textbf{Tipo} & \textbf{Prioridade} & \textbf{Resultado} \\
+\hline
+CT-PIP-001 & Pipeline & RF-05 & execução completa sem correção & Funcional & P1 & Aprovado \\ \hline
+CT-PIP-002 & Pipeline & RF-05 & execução completa com LOESS & Funcional & P1 & Aprovado \\ \hline
+CT-PIP-003 & Pipeline & RF-05 & execução com SERRF, com a ressalva declarada & Funcional & P1 & Aprovado \\ \hline
+CT-PIP-004 & Pipeline & RF-06 & NEGATIVO: par de grupos inexistente; variações de grafia passam & Funcional & P1 & Aprovado \\ \hline
+CT-PIP-005 & Pipeline e qualidade & RF-07 & PLS-DA nunca sem validação: Q$^{2}$ e p de permutação juntos & Funcional & P1 & Aprovado \\ \hline
+CT-PIP-006 & Pipeline & RF-08 & determinismo: mesma entrada e semente, saída idêntica & Funcional & P1 & Aprovado \\ \hline
+CT-PIP-007 & Pipeline & RF-09 & o progresso aparece sozinho, sem botão & Usabilidade & P2 & Aprovado \\ \hline
+CT-PIP-008 & Pipeline & RNF-05 & ``vários núcleos'' muda tempo e memória, não o resultado & Desempenho & P2 & Aprovado \\ \hline
+CT-ART-001 & Levar o resultado & RF-10 & gerar e salvar a matriz corrigida & Funcional & P1 & Reprovado \\ \hline
+CT-ART-002 & Levar o resultado & RF-10 & a matriz processada difere da corrigida & Funcional & P1 & Reprovado \\ \hline
+CT-ART-003 & Levar o resultado & RF-11 & exportar no formato do MetaboAnalyst, com corte de 5.000 & Funcional & P1 & Aprovado \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{minipage}}
+\end{table}
+
+\begin{table}[p]
+\centering
+\rotatebox{90}{\begin{minipage}{0.97\textheight}
+\centering
+\contcaption{(continuação)}
+\normalsize
+\begin{tabularx}{\linewidth}{|l|>{\hsize=0.65\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|l|>{\hsize=1.35\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|l|l|l|}
+\hline
+\textbf{ID} & \textbf{Funcionalidade} & \textbf{Requisito} & \textbf{Cenário} & \textbf{Tipo} & \textbf{Prioridade} & \textbf{Resultado} \\
+\hline
+CT-ART-004 & Levar o resultado & RF-10 & os dois botões que geram os três corretores de uma vez & Funcional & P2 & Aprovado \\ \hline
+CT-QUA-001 & Qualidade & RF-15 & conjunto completo de métricas, nunca reduzido a um número & Funcional & P1 & Aprovado \\ \hline
+CT-QUA-002 & Qualidade & RF-15 & RSD dos QCs antes e depois, com os dois rótulos & Funcional & P1 & Reprovado \\ \hline
+CT-REC-001 & O que este aplicativo NÃO faz & RF-16 & cada limite aparece com motivo não vazio & Funcional & P2 & Aprovado \\ \hline
+CT-TRB-001 & Trabalhos em curso & RF-13 & parar um trabalho a partir de qualquer aba & Funcional & P1 & Reprovado \\ \hline
+CT-CLI-001 & Linha de comando & RF-17 & os subcomandos produzem os mesmos arquivos que a janela & Integração & P3 & Reprovado \\ \hline
+CT-SEG-001 & Servidor local embutido & RNF-06 & o servidor embutido só é alcançável da própria máquina & Segurança & P2 & Aprovado \\ \hline
+CT-USA-001 & Público-alvo & todos os RF & uso sem acompanhamento: um profissional corrige um estudo do começo ao fim & Usabilidade & P1 & Não executado \\ \hline
+CT-USA-002 & Público-alvo & todos os RF & questionário pós-uso, na ordem das abas & Usabilidade & P1 & Não executado \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{minipage}}
+\end{table}
+
+\textbf{Totais.} São 31 casos: por tipo, 21 funcionais, 3 de integração, 2 de desempenho, 3 de usabilidade, 1 de compatibilidade e 1 de segurança; por prioridade, 22 de prioridade alta, 8 de média e 1 de baixa. Foram executados 29, entre 09 e 11/09/2026, com 22 aprovados e 7 reprovados; os 2 de usabilidade dependem da avaliação com usuários (\ref{sec:5-4}).
+
+% Planilha v1.5, aba «Fluxo de Teste», linhas 6 a 40, sem as linhas dos CT-MUL; contagem feita
+% com openpyxl em 04/10/2026.
+
+\subsection{Os reprovados, e a quem cada defeito foi atribuído}\label{sec:5-2-2}
+
+O dado mais útil não é quantos casos reprovaram, mas onde estava o defeito. A remedição de 13/09/2026 atribuiu cinco dos sete defeitos ao critério de teste --- o resultado esperado estava errado ou impreciso ---, um a um arquivo de evidência desatualizado e um ao sistema (Tabela~\ref{tab:5-3}).
+
+\begin{table}[htbp]
+\centering
+\caption{Os reprovados e a atribuição de cada defeito}\label{tab:5-3}
+\normalsize
+\begin{tabularx}{\linewidth}{|l|>{\hsize=0.59\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=0.62\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.79\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|}
+\hline
+\textbf{Caso} & \textbf{Defeito (severidade)} & \textbf{Onde estava} & \textbf{O que a remedição mostrou} \\
+\hline
+CT-APP-003 & BUG-002 (média) & arquivo desatualizado & o veredito de falha no disco era de 10/09, das 18:23, e o conserto entrou às 19:02 do mesmo dia: o arquivo era anterior à correção \\ \hline
+CT-VAL-002 & BUG-003 (baixa) & critério & os cinco códigos plantados foram detectados; o esperado pedia severidade de aviso para um código que é informativo por desenho, e localização em dois códigos que por desenho não a têm \\ \hline
+CT-ART-001 & BUG-007 (baixa) & critério & o botão não fica acinzentado (desenho retirado a pedido do usuário), e clicar de novo não refaz o trabalho: três disparos devolveram o mesmo identificador \\ \hline
+CT-ART-002 & BUG-008 (média) & critério & as duas matrizes diferem (2.184 contra 2.062 \textit{features} no \texttt{neg\_\allowbreak{}c18}); o esperado atribuía a queda à etapa errada --- a que descarta é a de variância quase nula \\ \hline
+CT-QUA-002 & BUG-004 (média) & critério & o painel mede certo; o esperado trazia números retratados e atribuía um valor ao estimador errado \\ \hline
+CT-TRB-001 & BUG-005 (baixa) & critério & a parada funciona e chega ao estado final em 1,41 a 1,53 s (seis ensaios, mediana de 1,50 s); o prazo ``menos de um segundo'' era prometido e nunca medido \\ \hline
+CT-CLI-001 & BUG-006 (\textbf{alta}) & \textbf{sistema} & (1) o teste de identidade byte a byte entre a linha de comando e a interface de programação procurava o executável num caminho que só existe em Linux, e era \textbf{pulado em silêncio} no Windows; (2) o comando de exportação produzia o arquivo certo e terminava com código de erro numa console Windows de página de código \texttt{cp932}, porque imprimia texto acentuado \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{table}
+
+Nos cinco casos de critério, a decisão registrada é corrigir o resultado esperado --- o texto do critério ---, e não o sistema. Nem todos os esperados eram impossíveis para uma implementação correta: um descrevia um comportamento que existiu e foi retirado a pedido do usuário, outro uma meta de desempenho nunca medida. É a mesma disciplina da auditoria de especificação (\ref{sec:5-3-6}): quando o esperado diverge, confere-se primeiro se ele mede o que o sistema promete, e a decisão fica registrada.
+
+A forma correta de relatar é esta: \textbf{dos sete reprovados, cinco foram atribuídos a defeito do critério de teste e um a arquivo de evidência desatualizado, com a remedição registrada; um é defeito do sistema, de severidade alta.} O resultado esperado dos cinco casos de critério já foi corrigido --- o de CT-QUA-002 antes, e os de CT-VAL-002, CT-ART-001, CT-ART-002 e CT-TRB-001 na versão 1.8 da planilha, de 03/11/2026 ---, mas o status continua ``Reprovado'' nos sete até que os casos sejam executados de novo. Dizer que ``o sistema passou em 28 de 29'' seria falso.
+
+% Insumo 5.2.2, sem as linhas dos CT-MUL (BUG-009 a 011, os três de critério). Planilha v1.8:
+% células J13, J25, J26 e J36, cada uma com a nota de 03/11/2026 na coluna R; os textos seguem a
+% decisão escrita na própria linha, e as severidades e localizações de CT-VAL-002 foram conferidas em
+% src/refino/io/issues.py (FIXED_SEVERITY), src/refino/io/sniffer.py e src/refino/io/validators.py.
+
+\subsection{Estado dos defeitos}\label{sec:5-2-3}
+
+A Tabela~\ref{tab:5-4} traz o estado, depois da remedição, dos dois defeitos que não eram do critério.
+
+\begin{table}[htbp]
+\centering
+\caption{Estado dos defeitos depois da remedição}\label{tab:5-4}
+\normalsize
+\begin{tabularx}{\linewidth}{|>{\hsize=0.99\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=0.56\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.45\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|}
+\hline
+\textbf{Defeito} & \textbf{Estado} & \textbf{Evidência} \\
+\hline
+BUG-002 (portão de congelamento em falha) & resolvido & o portão de congelamento das versões publicadas em 03/10/2026 e em 25/10/2026 terminou com 49 passos e nenhuma falha \\ \hline
+BUG-006 (linha de comando) & corrigido em 25/09/2026 & o teste passou a achar o executável onde o ambiente o instala, e os 54 testes do arquivo --- a identidade byte a byte entre a linha de comando e a interface de programação --- rodaram e passaram no Windows pela primeira vez; o comando passou a configurar a saída em UTF-8 antes de imprimir, com par causal em teste próprio \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{table}
+
+Pelo critério de saída do plano, o BUG-006 exigia correção e reexecução, ou decisão do orientador para entregá-lo como limitação. A correção foi feita e reexecutada nos testes automatizados; o caso CT-CLI-001 ainda precisa ser reexecutado pelo grupo para mudar de status na planilha.
+
+% D519; mensagem do commit ba278d5 (D542): «49 passos e 0 falhas no congelamento»; nota de
+% publicação de D593, para a windows-2026.10.25.1: «O congelamento passou com 49 passos e 0 falhas». O BUG-001 —
+% texto do LEIA-ME sobre o número de análises do multiverso — sai com o multiverso.
+
+\subsection{A aba ``Gráficos'' não tem caso de sistema}\label{sec:5-2-4}
+
+A aba ``Gráficos'', com as figuras de qualidade da correção, entrou no ramo principal em 16/09/2026, depois do executável testado. O que existe para ela é verificação do nível 1 --- \textbf{193} testes da aba, na versão publicada em 25/10/2026, além de testes unitários por família de figura --- e a verificação dirigida descrita em \ref{sec:5-2-5}. \textbf{Nenhum caso caixa-preta sobre o executável a cobre}, e essa lacuna fica declarada. O formulário da avaliação com usuários já traz uma afirmação sobre essa aba (\ref{sec:5-4}).
+
+% Merge f4f2718. A aba «Vias metabólicas» também entrou depois do teste e fica fora (D523). Os
+% 193: pytest --collect-only tests/test_desktop_figuras.py sobre e889349, em 28/10/2026; eram 180 em
+% 04/10/2026.
+
+Para fechar a lacuna, ficam propostos sete casos no formato da planilha, \textbf{a executar} --- não são resultado (Tabela~\ref{tab:5-5}):
+
+\begin{table}[htbp]
+\centering
+\caption{Casos propostos para a aba ``Gráficos''}\label{tab:5-5}
+\normalsize
+\begin{tabularx}{\linewidth}{|l|>{\hsize=1.52\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|l|>{\hsize=0.48\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|}
+\hline
+\textbf{Proposta} & \textbf{Cenário} & \textbf{Tipo} & \textbf{Prioridade sugerida} \\
+\hline
+CT-GRA-001 & POSITIVO: painel da correção depois de uma execução com SERRF, sem medir os corretores & Funcional & P1 \\ \hline
+CT-GRA-002 & LIMITE: painel com a fila de barras depois de ``medir qual corretor vence'', com a política de escolha a se abster & Funcional & P2 \\ \hline
+CT-GRA-003 & POSITIVO: dispersão do RSD por \textit{feature}, QCs contra amostras & Funcional & P2 \\ \hline
+CT-GRA-004 & POSITIVO: células faltantes e abundância típica por classe clínica, conferidas contra contagem manual & Funcional & P2 \\ \hline
+CT-GRA-005 & POSITIVO: salvar a figura exibida em PNG & Funcional & P2 \\ \hline
+CT-GRA-006 & NEGATIVO: escolher as figuras que o produto declara não alimentar & Funcional & P2 \\ \hline
+CT-GRA-007 & NEGATIVO: pedir o \textit{volcano} ou os \textit{scores} do PLS-DA numa execução sem par de grupos & Funcional & P1 \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{table}
+
+% O detalhe de cada caso — pré-condições, dados, passos e resultado esperado, com valores de
+% referência de 24/09 — está no insumo, 5.2.8. As prioridades são sugestão, a decidir pelo grupo.
+
+\subsection{Verificação das figuras de qualidade da correção (24/09/2026)}\label{sec:5-2-5}
+
+Depois que a ferramenta foi enviada para teste ao professor de metabolômica Álex Aparecido Rosini Silva, em 16/09/2026, entraram no produto as \textbf{figuras de qualidade da correção}, na aba ``Gráficos'': o painel da correção, o violino do RSD por \textit{feature} e a composição por classe (requisito RF-20, integrado em 17/09/2026). Como chegaram depois do teste de sistema, a pergunta ``funcionam?'' foi respondida em 24/09/2026 por caminhos de verificação independentes, cada um com a sua população declarada. Nenhum deles rodou o executável congelado: todos rodaram no ambiente de desenvolvimento, com a interface de programação chamada no mesmo processo. Essa verificação usou a floresta do SERRF anterior à de 21/10/2026 e o SERRF e o LOESS anteriores às correções de 24/10/2026 (\ref{sec:5-3}): os valores do SERRF e do LOESS citados nesta subseção são dessa versão, e os da matriz sem correção não dependem dela.
+
+% Merge 0144529, de 17/09/2026. No insumo são os caminhos 1 e 3, e a metade das figuras do
+% caminho 5; os caminhos 2 e 4 e a metade das vias do 5 são da predição de vias (D523). O nome e a
+% data são do grupo, em 03/11/2026: «16/09 mandamos o software pra ele testar». O plano das figuras
+% (docs/plans/2026-09-16-1721-feat-figuras-de-qualidade-da-correcao-plan.md) registra que ele viu a
+% ferramenta e sentiu falta dos gráficos que o pipeline em R gera, relato de 16/09/2026.
+
+\textbf{Caminho 1 --- a suíte automatizada das figuras.} Em dez módulos de teste das figuras, 383 testes passaram, nenhum reprovou e nenhum foi pulado, em 40,8 s; o módulo da aba, rodado separadamente (ver \ref{sec:5-5}), teve 178 testes aprovados --- o total do arquivo naquela data --- e nenhum reprovado, em 36,3 s. \textit{População:} matrizes pequenas construídas para os testes, e não os quatro arquivos reais --- esse caminho diz que o código faz o que os testes afirmam, e não que as figuras estão certas no dado real.
+
+\textbf{Caminho 2 --- as figuras sobre o dado real, conferidas contra cálculo independente e contra o R.} Nos quatro modos, com os corretores SERRF e LOESS e os padrões da janela, foram feitas 8 execuções completas e 4 medições de ``qual corretor vence'', e as figuras foram montadas pelos próprios métodos do painel: 32 imagens, sem recusa e sem erro. O que se conferiu:
+
+\begin{itemize}
+\item \textbf{A análise de componentes principais (PCA) ``antes'' é a mesma de uma PCA independente:} correlação absoluta de 1,000000 na primeira e na segunda componentes, nos quatro modos, contra uma PCA refeita do zero sobre o arquivo original do laboratório, com variância explicada idêntica até a quarta casa decimal (por exemplo, 0,3403 e 0,0985 no \texttt{pos\_\allowbreak{}hilic}). A correlação é tomada em valor absoluto porque o sinal de uma componente principal é arbitrário.
+\item \textbf{A barra sem correção é a do R:} a mediana do RSD dos QCs sem correção que a figura desenha --- 24,15\% (\texttt{pos\_\allowbreak{}c18}), 67,18\% (\texttt{neg\_\allowbreak{}hilic}), 15,50\% (\texttt{neg\_\allowbreak{}c18}) e 143,81\% (\texttt{pos\_\allowbreak{}hilic}), sobre a população inteira de \textit{features} --- é exatamente a mediana correspondente do relatório do R em cada modo. As barras de SERRF e de LOESS não são comparáveis com as do R, porque medem outro estimador (\ref{sec:5-3-7}).
+\item \textbf{Os QCs ficam mais agrupados depois da correção nos 8 casos} (4 modos $\times$ 2 corretores), pela razão entre a dispersão média dos QCs ao seu centroide e a das amostras de estudo no plano das duas primeiras componentes, recalculada de forma independente (valores em \ref{sec:5-3-7}).
+\item \textbf{A composição por classe bate célula a célula} com uma contagem independente feita sobre o arquivo original, nos 4 modos e nas 4 classes clínicas. A primeira comparação divergiu numa classe do \texttt{neg\_\allowbreak{}c18}, e o defeito era do \textbf{verificador}, e não da ferramenta: três colunas daquele arquivo grafam o rótulo de outra forma, a ingestão da ferramenta normaliza a grafia, e o contador independente não normalizava. Corrigido o verificador, bateu. É um exemplo de por que o instrumento de verificação também precisa ser conferido antes de se acreditar no veredito dele.
+\item \textbf{O violino imprime a mediana do vetor que desenha}, e o recálculo direto do RSD sobre a matriz corrigida, feito em dois modos, dá os mesmos valores.
+\end{itemize}
+
+\textbf{Caminho 3 --- a janela montada, de ponta a ponta.} A janela principal real foi montada com o servidor no mesmo processo e percorreu o fluxo inteiro sem erro, no \texttt{pos\_\allowbreak{}hilic}, com o corretor SERRF e o par de grupos \texttt{ATLL} $\times$ \texttt{NoHTLV}. Na aba ``Gráficos'', as três figuras de qualidade desenharam inteiras: o painel da correção, com o índice de agrupamento dos QCs passando de 0,977 para 0,7448; o violino, com mediana de 105,7\% nos QCs (5.801 \textit{features}) e de 115\% nas amostras (5.795); e a composição por classe, com 13, 18, 14 e 16 injeções nas quatro classes. A mediana do RSD ``antes'' mostrada na tela (1,4381, em fração) bate com a do relatório do R (1,438129). \textit{Ressalvas:} um modo, um corretor e um par de grupos; a fila de barras do painel não foi desenhada, porque exige a medição dos corretores, e a figura mostra no lugar o texto que declara a ausência; e a plataforma gráfica foi a virtual (\textit{offscreen}) do Qt, e não a janela nativa.
+
+% Sugestão de figura, para o autor decidir. Saiu do corpo do texto em 05/10/2026, para a
+% revisora não a ler como texto da monografia; para entrar, segue a seção 7.3 do «Manual Overleaf
+% USCS» (imagem na pasta figs, ambiente figure, legenda, fonte e rótulo). Colocar lado a lado o painel
+% gerado pela ferramenta e o painel correspondente do pipeline em R, para o mesmo modo e o mesmo
+% corretor. Legenda sugerida, para o neg_c18 com SERRF: «Painel da correção do modo neg_c18 com o
+% corretor SERRF: à esquerda, a figura gerada pela ferramenta; à direita, a gerada pelo pipeline de
+% referência em R. Nas duas, a parte inferior mostra a PCA antes e depois da correção, com os QCs em
+% vermelho. Na barra sem correção os dois programas concordam (15,5%); as barras de SERRF e de LOESS
+% usam estimadores de RSD diferentes nos dois programas e não são comparáveis entre si. Nesta
+% medição, de setembro de 2026, a política de escolha da ferramenta se absteve, porque o SERRF superava
+% a ausência de correção por apenas 0,03 ponto percentual. Em uma medição de 20 de outubro, com a
+% floresta do SERRF que a ferramenta adotou no dia seguinte e a semente padrão, o neg_c18 deixou de
+% ser caso de abstenção. Essa medição é anterior às correções de 24 de outubro; depois delas, em 25
+% de outubro, a política também não se abstém nesse modo (SERRF 15,12% contra 15,50%).» D573, SF2; a
+% de 25/10/2026, rodada RC (ver o comentário de 5.3.7).
+
+% Figura: docs/telas-apresentacao/2026-09-24-r1-painel-neg_c18-serrf-nosso.png e
+% serrf/data/output/neg_c18_toserrf - normalization result/Bar Plot and PCA plot.png. A segunda
+% sugestão, do pos_hilic, está no insumo, 5.2.5.
+
+\subsection{Problemas menores achados e registrados}\label{sec:5-2-6}
+
+A mesma verificação registrou problemas que não alteram nenhum número de resultado --- de registro, de texto na tela, de usabilidade ou de documentação. Cada um foi registrado com a medição e a forma de reproduzi-lo (Tabela~\ref{tab:5-6}).
+
+\begin{table}[htbp]
+\centering
+\caption{Problemas menores da verificação de 24/09/2026}\label{tab:5-6}
+\normalsize
+\begin{tabularx}{\linewidth}{|>{\hsize=1.29\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.29\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=0.42\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|l|}
+\hline
+\textbf{O problema} & \textbf{O que foi medido} & \textbf{Natureza} & \textbf{Estado} \\
+\hline
+O tempo da medição ``qual corretor vence'' não é gravado & nos 4 modos, a medição terminou certa e o registro do tempo foi recusado, porque a operação não pertencia ao conjunto fechado das operações registradas & registro de custo & corrigido \\ \hline
+A fila de barras do painel só aparece depois de uma medição longa & a medição custou de 593,9 s (\texttt{neg\_\allowbreak{}hilic}) a 1.873,5 s (\texttt{pos\_\allowbreak{}hilic}), numa máquina de 12 núcleos; sem ela, metade da figura fica em branco, com um aviso & usabilidade & corrigido \\ \hline
+A barra de progresso fica parada em ``0/7 etapas'' durante toda a correção SERRF do \texttt{pos\_\allowbreak{}hilic} & de 29 s a 362 s depois do disparo, em doze leituras seguidas; a correção é uma etapa só e ocupa quase todo o tempo & usabilidade & corrigido \\ \hline
+A faixa ``Trabalhos em curso'' diz ``sem leitura'' quando a própria tela já diz ``concluído'' & a faixa só conhece o estado que ela mesma leu & texto na tela & corrigido \\ \hline
+A frase de que o LOESS leva a zero o RSD medido dentro da amostra vale para o LOESS do R, e não para o da ferramenta & medianas dentro da amostra do RSD dos QCs com o LOESS da ferramenta: 3,38\%, 11,54\%, 15,09\% e 84,00\% nos quatro modos & afirmação de escopo & corrigido em parte \\ \hline
+A documentação interna de uma rota cita números antigos & os números de setembro do \texttt{neg\_\allowbreak{}c18} mostravam o SERRF à frente por 0,03 ponto percentual e a política se abstendo; o texto antigo dava a ausência de correção como vencedora & documentação interna & corrigido \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{table}
+
+Cinco foram corrigidos em 25/09/2026, cada um com teste, e o sexto foi corrigido em parte: os textos de tela deixaram de atribuir ao LOESS da ferramenta o que vale para o do R, e o que ficou aberto está registrado. Outros quatro problemas registrados na mesma verificação são da aba de vias metabólicas e acompanham essa funcionalidade como trabalho futuro.
+
+% Itens 83, 84, 85, 86, 90 e 91 de docs/trabalho-futuro.md; D513 (bcbe853). Os itens 87, 88, 89
+% e 92 são da aba de vias (D523). Os números da tabela são da verificação de 24/09/2026, como diz a
+% legenda, com o SERRF e o LOESS de então; o fim da abstenção no neg_c18, de 20/10/2026, está em 5.3.7
+% (D573, SF2).
+
+\textbf{Uma leitura que confunde e não é erro.} Na janela montada da verificação de 24/09/2026 (\texttt{pos\_\allowbreak{}hilic}, com o SERRF de então), a aba ``Qualidade do resultado'' mostrava RSD mediano dos QCs de 130,3\%, e o violino da aba ``Gráficos'', 105,7\%. Os dois estão certos e declaram a sua população: o primeiro é a variante sem remoção de valores discrepantes, sobre as 5.942 \textit{features} da matriz ao fim do pipeline; o segundo é a variante com remoção, sobre as 5.801 \textit{features} com RSD finito nos QCs da matriz corrigida. Os dois números não devem ser comparados sem os rótulos.
+
+\section{Resultados avaliados contra o referencial}\label{sec:5-3}
+
+Cada subseção responde a uma pergunta, com o número medido, a leitura contra o referencial teórico do capítulo 2 e o que não se pode concluir. Os números são sobre \textbf{um} estudo --- quatro modos cromatográficos do mesmo laboratório e do mesmo equipamento, com 68 amostras e 7 QCs por corrida ---, e essa ressalva vale para a seção inteira. A relação entre cada resultado e o conceito que ele avalia está resumida a seguir (Tabela~\ref{qua:5-1}).
+
+\begin{table}[htbp]
+\centering
+\caption{Cada resultado e o conceito do referencial que ele avalia}\label{qua:5-1}
+\normalsize
+\begin{tabularx}{\linewidth}{|>{\hsize=0.72\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.14\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.14\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|}
+\hline
+\textbf{Resultado} & \textbf{O que foi medido} & \textbf{Conceito do referencial avaliado} \\
+\hline
+\ref{sec:5-3-1} Fidelidade ao pipeline em R & reprodução do pipeline de referência: exata onde o oráculo é determinístico, estatística no SERRF & correção de deriva por QC com LOESS e com SERRF; controle da taxa de falsas descobertas \\ \hline
+\ref{sec:5-3-2} A régua muda o veredito & o estimador do RSD muda a posição do LOESS diante da ausência de correção em três dos quatro modos & o RSD dos QCs como critério de qualidade analítica, com as suas variantes e estimadores \\ \hline
+\ref{sec:5-3-3} Validação do PLS-DA & Q$^{2}$ e p de permutação sob a hipótese nula, em dado real & validação cruzada e teste de permutação contra sobreajuste \\ \hline
+\ref{sec:5-3-4} Decisão automática & política aprendida contra regra constante; diagnóstico sobre dados sintéticos & aprendizado de máquina como apoio à escolha de método; dados sintéticos com verdade conhecida \\ \hline
+\ref{sec:5-3-5} Interoperabilidade & exportação no formato do MetaboAnalyst & o MetaboAnalyst como ferramenta da área; níveis de identificação \\ \hline
+\ref{sec:5-3-6} Processo de desenvolvimento & defeitos de especificação por auditoria; defeitos de critério no teste de sistema & verificação e validação de software, apresentada em \ref{sec:5-3-6} \\ \hline
+\ref{sec:5-3-7} Figuras de qualidade da correção & agrupamento dos QCs na PCA antes e depois; barra sem correção contra o R & a correção por QC deve aproximar os QCs entre si; inspeção dos QCs por componentes principais \\ \hline
+\ref{sec:5-2} Teste de sistema & 31 casos positivos, negativos e de limite & teste caixa-preta, classes de equivalência e valores-limite, apresentados em \ref{sec:5-3-6} \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{table}
+
+% Onde cada conceito está no capítulo 2: insumo 5.3.0 (seções 2.1.x da Parte II e linhas do
+% Overleaf). Os dois conceitos que o capítulo 2 não traz — verificação e validação de software; teste
+% caixa-preta, classes de equivalência e valores-limite — estavam marcados aqui como «ausente do
+% referencial» até 05/10/2026; desde então são apresentados, com as referências, no parágrafo de leitura
+% de 5.3.6. Levá-los ao capítulo 2 continua a ser sugestão ao grupo.
+
+\textbf{Duas mudanças datam os números desta seção.} Em 21/10/2026, a floresta aleatória do SERRF passou a ser uma que conta as amostras sorteadas como o pacote \texttt{ranger} do R, porque o laboratório que vai usar a ferramenta está acostumado ao SERRF do R. Em 24/10/2026, uma revisão do código encontrou pontos em que as implementações do SERRF e do LOESS divergiam da especificação, e as duas foram corrigidas; a versão do executável publicada em 25/10/2026 já inclui as duas mudanças. Os resultados desta seção que envolvem o SERRF ou o LOESS foram medidos antes dessas correções, salvo os da Tabela~\ref{tab:5-7}, a ordem dos corretores em \ref{sec:5-3-2}, os dois critérios de fidelidade do SERRF em \ref{sec:5-3-1}, a reavaliação da política aprendida em \ref{sec:5-3-4}, e a Tabela~\ref{tab:5-8} e as barras em \ref{sec:5-3-7}, medidos de novo depois delas; cada um desses números vem com a data ou a versão em que foi medido.
+
+% D573 e D574 (a floresta que conta como o ranger, por decisão do usuário: «vamos deixar
+% implementado o que mais se assemelha com o R»); D588 a D591 (a revisão de 24/10/2026, oo.md); a
+% nota de publicação de D593; docs/monografia-revisao-final.md, parte 2.1, «Proposta geral».
+
+\subsection{A reimplementação é fiel ao pipeline de referência em R?}\label{sec:5-3-1}
+
+\textbf{Resposta curta:} onde o oráculo é determinístico, sim, no nível do arredondamento de ponto flutuante; onde é estocástico, a fidelidade só pode ser estatística, e o que se mediu é a direção e o tamanho da diferença.
+
+\begin{itemize}
+\item \textbf{Onde a definição é fechada.} O procedimento de Benjamini-Hochberg reimplementado coincide com o da biblioteca \texttt{scipy} a 2,22 $\times$ 10$^{-16}$ --- o épsilon da dupla precisão ---, contra tolerância de 10$^{-12}$, sobre 1.000 vetores. A coluna sem correção do relatório de RSD do R é reproduzida em 100\% das \textit{features}, com erro máximo de 5,8 $\times$ 10$^{-15}$ e conjunto de valores indefinidos idêntico, nos quatro modos.
+\item \textbf{Executado como um usuário de fora.} Pela linha de comando instalada, contra os arquivos do laboratório, o caminho sem correção é idêntico bit a bit ao do R em 872.440 de 872.440 células. No \texttt{batch\_\allowbreak{}loess}, a comparação direta é imprópria por construção, porque o próprio R não se reproduz nesse caminho: numa série de cinco execuções do script original no \texttt{pos\_\allowbreak{}hilic}, de 03/10/2026, elas concordam entre si em 551 \textit{features} (numa série anterior, também de cinco, em 533). O critério de aceitação usa, por isso, uma razão por \textit{feature} contra o piso de irreprodutibilidade do próprio oráculo, e é aprovado.
+\item \textbf{A correção SERRF portada, passo a passo.} Verificada com a predição do próprio R no lugar da floresta da ferramenta, a reimplementação foi considerada fiel ao método nos onze passos. A revisão de 24/10/2026 mostrou que essa verificação chamava a função de cada passo com os argumentos certos, enquanto o código da ferramenta passava ao passo 2 a matriz já transformada pelo passo 1, e ao passo 9 o valor normalizado em vez do medido. Os dois pontos foram corrigidos naquele dia, com testes que conferem os argumentos que o código passa aos passos 2 e 9. Antes disso, sobravam duas divergências: a floresta aleatória --- as implementações do R (\texttt{ranger}) e do Python (\texttt{scikit-\allowbreak{}learn}) ajustam árvores diferentes sobre sete pontos de treino --- e uma diferença no passo 6 (20 de 20 no bloco dos QCs, contra 7 de 20 no das amostras, medida com a floresta usada até 21/10/2026).
+\item \textbf{O tamanho da correção, contra o R.} Com a floresta usada até 21/10/2026, medida contra quatro execuções do R, fora da amostra e sobre a população inteira, a reimplementação reproduzia de 17\% a 29\% da correção do R nos três modos em que a diferença entre os dois saía do ruído do próprio R, e no \texttt{neg\_\allowbreak{}c18} a fração ia de 10\% a 25\% conforme a execução do R. Com a floresta adotada em 21/10/2026, outra medida, que compara a redução do RSD dos QCs fora da amostra com a de uma execução do R por QC retirado, passou de 15,1\% a 29,3\% para 90,7\% a 159,2\% da redução do R nos quatro modos. O valor mais alto é o do \texttt{neg\_\allowbreak{}c18}, em que a redução do R é pequena (de 15,50\% para 15,28\%) e a variação entre execuções do R não foi medida. Essa medida é anterior às correções de 24/10/2026.
+\item \textbf{Os dois critérios de fidelidade do SERRF.} O critério de concordância do vetor de RSD não era cumprido em nenhum modo com a floresta anterior, e a reprovação tinha sido atribuída à floresta, porque, com a predição do próprio R no lugar dela, a reimplementação passava nos quatro; como a correção de 24/10/2026 mudou também a escolha dos preditores, que entra na predição, essa atribuição pode ter sido em parte do passo 2. Com a floresta nova, o critério passou a ser cumprido em dois modos (\texttt{pos\_\allowbreak{}hilic} e \texttt{neg\_\allowbreak{}c18}), numa medição de 21/10/2026, no Linux. Medido de novo em 25/10/2026, no Windows, com as correções e 20 ajustes por modo, ele é cumprido em três: a divergência entre a reimplementação e o R ficou em 0,81, 0,80 e 0,76 da tolerância que o critério deriva da variação entre execuções do R, no \texttt{pos\_\allowbreak{}hilic}, no \texttt{neg\_\allowbreak{}hilic} e no \texttt{neg\_\allowbreak{}c18}, e em 1,38 no \texttt{pos\_\allowbreak{}c18}, onde o critério ainda não é cumprido. No \texttt{neg\_\allowbreak{}hilic}, que passou a cumprir o critério depois da correção, a atribuição à floresta fica em aberto, porque a separação entre as duas causas não foi medida, e as duas medições foram feitas em sistemas operacionais diferentes, o que não permite separar o efeito da correção do efeito do sistema. O outro critério, que compara a mediana do RSD dos QCs com a do R, não é cumprido em nenhum dos quatro modos, antes e depois das correções.
+\item \textbf{Recuperação da verdade em dados sintéticos.} Com a floresta usada até 21/10/2026, em 20 réplicas sintéticas por modo, de 300 \textit{features} cada, com deriva gradual e 7 QCs, como nas corridas reais: no \texttt{pos\_\allowbreak{}c18}, a reimplementação estraga 2,6 vezes menos \textit{features} que o R (fração piorada média de 2,45\% contra 6,28\%; p = 1,6 $\times$ 10$^{-4}$, em 19 das 20 réplicas), e no \texttt{pos\_\allowbreak{}hilic} essa vantagem deixa de ser significativa (p = 0,087); mas o R recupera a verdade melhor nos quatro modos (p de 1,9 $\times$ 10$^{-6}$ a 4,9 $\times$ 10$^{-3}$; no \texttt{pos\_\allowbreak{}c18}, em 17 de 20 réplicas, e nos outros três, em 20 de 20).
+\item \textbf{Sensibilidade à perda de um QC.} Com a floresta usada até 21/10/2026, em matrizes sintéticas, perder um QC piora o erro da reimplementação mais que o do R nos quatro modos, mas o tamanho do efeito varia por um fator de 66 --- de +19,8\% no \texttt{neg\_\allowbreak{}c18} a +0,3\% no \texttt{pos\_\allowbreak{}hilic} ---, e só é significativo em dois dos quatro.
+\end{itemize}
+
+% M3 e [CA-6.1]; [CA-2.1] e docs/divergencias.md:154; M15 e D540, medição B1 (551); M2, D231,
+% DV28 e D540, medição B4; M18 e D539, medição B2; M19. A floresta nova e os 90,7% a 159,2%: D573,
+% D574 e D575 (data/fixtures/regua_fora_da_amostra.json, estado da SF: a razão vai de 90,7% no
+% neg_hilic a 159,2% no neg_c18). Os passos 2 e 9: D590, S1 e S2. O critério de concordância
+% ([CA-3.1]) e o da mediana ([CA-3.2]): a F3 de docs/medicoes-jh/PRE-REGISTRO.md (21/10/2026, YY:
+% 0,9993 / 1,3760 / 1,0694 / 0,8488) e a nota da dispersão no Windows de D593, com 80 ajustes, quatro
+% modos com vinte sementes cada, sobre e889349 (docs/medicoes-jh/resultados/razoes_windows.txt:
+% 0,8137 / 1,3778 / 0,8021 / 0,7583 e 10,7050 / 37,1372 / 3,8811 / 4,2744).
+
+\textbf{Leitura contra o referencial.} O referencial apresenta o SERRF como abordagem de aprendizado de máquina que usa correlações entre metabólitos para corrigir a deriva \cite{fan2019systematic}. O resultado acrescenta um ponto de método: um método cuja implementação de referência não fixa semente não pode ser validado por igualdade numérica, e a tolerância de um critério de fidelidade tem de vir da variabilidade do próprio oráculo. \textbf{O que não se pode dizer:} que ``o SERRF em Python é equivalente ao do R''. Com a floresta usada até 21/10/2026, a reimplementação corrigia menos que o original fora da amostra em três modos; com a floresta adotada naquele dia, pela medida descrita acima e antes das correções de 24/10/2026, ela reduz o RSD tanto ou mais que o original em três modos e um pouco menos no \texttt{neg\_\allowbreak{}hilic}; e, depois das correções, o critério de concordância do vetor de RSD ainda não é cumprido no \texttt{pos\_\allowbreak{}c18}, e o da mediana não é cumprido em nenhum modo.
+
+\subsection{A régua de qualidade muda o veredito sobre a correção?}\label{sec:5-3-2}
+
+\textbf{Resposta curta:} sim, em três dos quatro modos, e esse é o resultado central do trabalho. Medida dentro da amostra, a correção LOESS fica à frente da ausência de correção nos quatro modos; medida fora da amostra, fica atrás dela em três. O melhor corretor só muda num modo, e por uma diferença pequena.
+
+Sobre os mesmos dados, com a mesma implementação, a mediana do RSD dos QCs foi medida por dois estimadores: o \textit{in-sample} (dentro da amostra), que mede nos mesmos QCs que ajustaram a curva de correção, e o \textit{leave-one-QC-out} (fora da amostra), que retira um QC de cada vez do ajuste e mede nele. Com o estimador dentro da amostra, as duas correções ficam abaixo da ausência de correção nos quatro modos, e a ordem entre elas depende do modo: o SERRF fica em primeiro no \texttt{pos\_\allowbreak{}hilic} (28,47\% contra 77,46\% do LOESS) e no \texttt{pos\_\allowbreak{}c18} (5,00\% contra 10,80\%), e o LOESS no \texttt{neg\_\allowbreak{}hilic} (14,20\% contra 19,83\%) e no \texttt{neg\_\allowbreak{}c18} (2,85\% contra 2,98\%). Fora da amostra, o LOESS é pior do que não corrigir em três dos quatro modos e só fica à frente no \texttt{neg\_\allowbreak{}hilic} (Tabela~\ref{tab:5-7}). No \texttt{neg\_\allowbreak{}c18}, o primeiro colocado também muda, do LOESS dentro da amostra para o SERRF fora dela, mas a distância entre os dois primeiros é pequena nos dois casos (0,13 e 0,09 ponto percentual), e o resultado não depende dessa troca.
+
+\begin{table}[htbp]
+\centering
+\caption{Mediana do RSD dos QCs (\%), estimador fora da amostra}\label{tab:5-7}
+\normalsize
+\begin{tabularx}{\linewidth}{|l|r|r|r|>{\hsize=1\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|}
+\hline
+\textbf{Modo} & \textbf{sem correção} & \textbf{LOESS} & \textbf{SERRF} & \textbf{LOESS $\times$ sem correção} \\
+\hline
+\texttt{pos\_\allowbreak{}hilic} & 134,98 & 137,14 & 102,00 & pior \\ \hline
+\texttt{pos\_\allowbreak{}c18} & 23,59 & 32,17 & 14,79 & pior \\ \hline
+\texttt{neg\_\allowbreak{}hilic} & 68,30 & 59,54 & 63,39 & melhor \\ \hline
+\texttt{neg\_\allowbreak{}c18} & 15,96 & 19,52 & 15,87 & pior \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{table}
+
+\textit{População:} 500 \textit{features} amostradas por modo, semente 42, variante com remoção de valores discrepantes. As colunas do LOESS e do SERRF foram medidas com as duas implementações corrigidas em 24/10/2026, num contêiner Linux. O LOESS fora da amostra já deu valores diferentes no Linux e no Windows com o mesmo código: em 02/10/2026, com a versão anterior às correções, 147,44\% e 147,61\% na população inteira do \texttt{pos\_\allowbreak{}hilic}. A coluna sem correção não depende do corretor. Os valores dependem da amostra, e a ordem não: sobre a população inteira, medida de novo com o código corrigido em 25/10/2026, também no Linux, o LOESS fica pior que não corrigir nos mesmos três modos (\texttt{pos\_\allowbreak{}hilic}, 147,43\% contra 143,81\%; \texttt{pos\_\allowbreak{}c18}, 32,40\% contra 24,15\%; \texttt{neg\_\allowbreak{}c18}, 19,32\% contra 15,50\%) e melhor no \texttt{neg\_\allowbreak{}hilic} (59,20\% contra 67,18\%), e o melhor corretor é o mesmo da Tabela~\ref{tab:5-7} nos quatro modos (\ref{sec:5-3-7}). O LOESS medido é o da ferramenta, uma reimplementação do \texttt{batch\_\allowbreak{}loess} do R.
+
+% docs/medicoes-jh/resultados/ca_3_3_ranking_contenedor.json (D593): mediana_fora_da_amostra_pct,
+% mediana_in_sample_pct, ranking_in_sample, ranking_fora_da_amostra, fracao_bate_none_pct e
+% n_features_pareadas; medido em 25/10/2026 sobre ed0f4f9, num contêiner Linux com Python 3.12.3, pelo
+% teste do [CA-3.3]. A tabela anterior, de M1 (docs/monografia.md), era da versão de setembro: 135,81 /
+% 132,65, 32,14 / 21,49, 59,42 / 67,48 e 19,74 / 16,02 nas colunas do LOESS e do SERRF; a coluna sem
+% correção é a mesma, o que confirma a mesma amostra. Os 147,44% e 147,61%: D539, medição A4b. A
+% população inteira depois das correções: rodada RC, rc_relatorio_gerado.md, colunas «Depois» (a
+% procedência está no comentário de 5.3.7).
+
+Comparando \textit{feature} a \textit{feature}, o LOESS ficou abaixo da ausência de correção em menos da metade das \textit{features} nos quatro modos, de 4,3\% no \texttt{pos\_\allowbreak{}c18} a 42,4\% no \texttt{neg\_\allowbreak{}hilic}, contadas entre as que têm o RSD definido com e sem a correção (de 406 a 483 por modo). Mesmo no \texttt{neg\_\allowbreak{}hilic}, onde a mediana do LOESS é a menor das três, ele melhora menos da metade das \textit{features}. O SERRF ficou abaixo da ausência de correção na maioria das \textit{features} nos quatro modos, de 53,9\% no \texttt{neg\_\allowbreak{}c18}, perto da metade, a 91,2\% no \texttt{pos\_\allowbreak{}c18} (de 455 a 495 \textit{features} por modo).
+
+O mecanismo é conhecido e verificável: um método que ajusta uma curva através dos QCs reduz, por construção, a dispersão medida nesses mesmos pontos. No \texttt{batch\_\allowbreak{}loess} do R, a mediana dentro da amostra chega a 1,9 $\times$ 10$^{-15}$ no \texttt{pos\_\allowbreak{}c18} --- zero, na prática; no LOESS da ferramenta, ela diminui sem chegar a zero (de 3,38\% a 84,00\% nos quatro modos, na população inteira, com o LOESS anterior às correções de 24/10/2026; com o LOESS corrigido, nas 500 \textit{features} da Tabela~\ref{tab:5-7}, de 2,85\% a 77,46\%). O RSD medido dentro da amostra num método que ajusta modelo não mede a qualidade da correção: mede quanto o modelo se ajustou aos pontos de medição.
+
+\textbf{O pipeline do laboratório já separa as duas réguas, e o resultado mede por quê.} O script de referência usa o estimador dentro da amostra nos dez métodos que não ajustam modelo aos QCs, e avalia os três que ajustam --- o \texttt{batch\_\allowbreak{}loess}, o SERRF e o SVM --- com validação cruzada. A frase que o resultado sustenta é: \textit{a medida dentro da amostra, que o pipeline reserva aos métodos que não ajustam modelo aos QCs, colocaria o LOESS à frente da ausência de correção nos quatro modos se fosse usada para comparar corretores, e fora da amostra ele fica atrás dela em três dos quatro.}
+
+\textbf{E há uma instância do mesmo fenômeno do lado do R.} No \texttt{neg\_\allowbreak{}hilic}, as barras do relatório do R elegem o SERRF (55,65\% contra 65,55\% do LOESS, numa execução registrada). A régua fora da amostra aplicada aos corretores do próprio R, sobre a população inteira e com a variante com remoção de valores discrepantes, elege o LOESS em quatro execuções de cada --- LOESS de 59,57\% a 60,23\%, SERRF de 61,47\% a 62,10\% ---, e as faixas não se sobrepõem. Ali, o que muda o vencedor é trocar a validação cruzada do script pela retirada de um QC de cada vez. \textit{Escopo:} um modo e dois corretores do R.
+
+\textbf{O diagnóstico deriva as suas quantidades da literatura de consenso.} As quantidades que ele calcula são derivadas das três verificações que essa literatura recomenda --- o RSD por metabólito, o gráfico das duas primeiras componentes e a resposta contra a ordem de injeção ---, e duas delas, a mediana do RSD e a correlação da primeira componente com a ordem de injeção, são construção do trabalho. O corte de 0,20 é a reserva para modo desconhecido, e não o que a cascata aplica, que usa quatro limiares por modo, três deles acima de 20\%.
+
+% D540, medição B4, nota em M1; M17 e D220. Saíram os itens de M7 (o segundo caminho de código,
+% no multiverso) e de M6 (as réguas sem ótimo comum, [CA-8.8]), por D523.
+
+\textbf{Leitura contra o referencial.} O referencial já afirma que não existe um ponto de corte universal para o RSD, que valores inferiores a 20--30\% são frequentemente adotados, e que cada decisão de processamento pode levar a resultados diferentes a partir de uma mesma matriz \cite{diguida2016non}. O resultado transforma essa afirmação de princípio em medida: sobre os mesmos dados, a escolha do estimador de RSD inverte a posição do LOESS diante da ausência de correção em três dos quatro modos. A diretriz de consenso de Broadhurst et al. (2018) recomenda o RSD por metabólito dos QCs, com corte de aceitação, e, como inspeções, a dispersão dos QCs em componentes principais e a resposta de cada metabólito contra a ordem de injeção; ela especifica a fórmula e adverte que, quando a curva de correção se ajusta ao erro aleatório, a precisão relatada fica irrealisticamente boa, recomendando relatá-la num conjunto de QCs retido ou por validação cruzada \cite{broadhurst2018guidelines}. A advertência está na diretriz; o trabalho mede o tamanho do efeito e mostra que ele inverte a posição do LOESS diante da ausência de correção em três dos quatro modos. \textbf{O que não se pode dizer:} que ``o LOESS corrige mal'' --- o resultado é sobre a régua, e não sobre o método ---; que a régua troca o melhor corretor --- isso só acontece no \texttt{neg\_\allowbreak{}c18}, por menos de um quinto de ponto percentual ---; nem que ``o corte da ferramenta coincide com o consensual'', sem dizer que o corte aplicado é por modo.
+
+% Overleaf, linhas 949–952 e 275–277. Broadhurst et al. (2018), Metabolomics,
+% 10.1007/s11306-018-1367-3, conferido no texto integral em 25/09/2026 (insumo 5.3.2). A contraparte
+% publicada da separação entre deriva contínua e degrau (Čuklina et al., 2021; Westgard et al., 1977)
+% está em M17 e ainda não está na lista conferida.
+
+\subsection{A validação estatística do PLS-DA protege contra falso positivo?}\label{sec:5-3-3}
+
+\textbf{Resposta curta:} sim, e o indicador calibrado é o p-valor de permutação, e não o Q$^{2}$.
+
+Foram feitas 100 execuções com rótulos completamente aleatórios, com 200 permutações cada, sobre a matriz real do \texttt{pos\_\allowbreak{}hilic} (29 amostras no par de grupos, 758 \textit{features}, 7 dobras e 2 componentes). Sob essa hipótese nula, o Q$^{2}$ ficou menor ou igual a zero em \textbf{0,860} das execuções --- e saiu positivo em 14 de 100 ---, enquanto o p-valor de permutação ficou acima de 0,05 em \textbf{0,950} delas, que é o valor teórico exato. Nos outros três modos, com o mesmo par de grupos e a mesma configuração, a fração de Q$^{2}$ não positivo foi de 0,900, 0,890 e 0,900, com intervalos de confiança de 95\% que se sobrepõem ao do \texttt{pos\_\allowbreak{}hilic}.
+
+Daí duas consequências de projeto. O sistema não devolve \textit{scores} de PLS-DA sem o Q$^{2}$ e o p-valor de permutação, e o caso de sistema CT-PIP-005, que confere isso, foi aprovado. E os limiares dos critérios de validação foram derivados dessa medição --- ao menos 89 e ao menos 77 de 100 execuções, quantis da distribuição binomial a 99\% ---, em vez de convencionados.
+
+% M4 e D150; D539, medição A9 (0,860, 0,900, 0,890 e 0,900 no pos_hilic, pos_c18, neg_hilic e
+% neg_c18).
+
+\textbf{Leitura contra o referencial.} O referencial apresenta o PLS-DA como método de referência em estudos baseados em espectrometria de massas, e o objetivo 4 pede validação cruzada e permutação para reduzir o risco de sobreajuste \cite{worley2013multivariate}. O resultado qualifica a prática: um Q$^{2}$ ligeiramente positivo não é evidência de separação com o tamanho de amostra típico da área, e o indicador com calibração garantida é o p-valor de permutação. \textbf{O que não se pode dizer:} que 0,86 é uma constante da área --- é um par de grupos, um tamanho de amostra e uma configuração.
+
+\subsection{A decisão automática funciona?}\label{sec:5-3-4}
+
+\textbf{Resposta curta:} a política aprendida continua disponível na linha de comando, mas acerta menos que uma regra constante que escolhe sempre o SERRF, com diferença significativa em uma das duas avaliações; na janela, a escolha automática do corretor passou a ser uma medição; e o diagnóstico automático sobre dados sintéticos não alcança o alvo. O primeiro é um resultado negativo em uma avaliação e inconclusivo na outra, e o último, um resultado negativo com causa medida.
+
+\begin{itemize}
+\item \textbf{Escolha do corretor por política aprendida.} A política aprendida acerta 67,5\% das 40 matrizes do conjunto de treino, contra 75,0\% da regra constante que escolhe sempre o SERRF, numa avaliação sobre dados sintéticos derivados dos quatro modos, que deixa um modo cromatográfico de fora de cada vez, dentro do mesmo estudo, laboratório e equipamento. O teste de McNemar não distingue essa diferença do acaso (p = 0,5078). Deixando uma matriz de fora por vez, ela acerta 55,0\% contra 75,0\%, e, nesse caso, a diferença é significativa (p = 0,0078). Dentro da amostra, a árvore acerta 87,5\%. Nos quatro arquivos reais, as duas políticas escolhem o SERRF e acertam 3 de 4, errando o \texttt{neg\_\allowbreak{}hilic}. O modelo anterior, treinado em dados sintéticos com oito QCs por corrida em vez dos sete reais, acertava 50,0\% contra 60,0\% (p = 0,5235); refeito o conjunto com sete QCs, sobre o mesmo plano, a política passou a acertar 70,0\% contra 55,0\% da regra constante (p = 0,2632); com a floresta do SERRF adotada em 21/10/2026, oito dos 40 rótulos passaram do LOESS para o SERRF, e a diferença voltou a favorecer a regra constante. Os rótulos vêm do SERRF anterior às correções de 24/10/2026. Numa reavaliação de 27/10/2026, com os rótulos medidos depois dessas correções, num outro conjunto, de 88 matrizes sintéticas (22 por modo), a política acerta 72 contra 73 da regra constante deixando um modo de fora, com uma única discordância (p = 1), 65 contra 73 deixando uma matriz de fora (p = 0,0386) e 78 dentro da amostra: o mesmo quadro, com a regra constante à frente e a diferença significativa só quando se deixa uma matriz de fora.
+\item \textbf{A decisão automática no produto.} A política aprendida continua disponível na linha de comando, mas, na janela, foi substituída por uma medição. Desde 23/10/2026, a sugestão de corretor da janela, o botão ``Palpite'', e a caixa ``Automático'' não usam mais a política aprendida: o ``Palpite'' mede o RSD dos QCs fora da amostra para os três corretores numa amostra de 200 \textit{features} da própria matriz, e a caixa segue essa medição, que nenhum critério da especificação avalia. Na janela, a caixa ``Automático'' vem marcada por padrão, a pedido do usuário, e a ressalva com a medição fica recolhida atrás de um botão que a abre, reaparece na linha do resultado depois da execução e está na aba ``O que este aplicativo NÃO faz''; na linha de comando, a ressalva sai na ajuda, na saída de erro e no registro da execução.
+\item \textbf{Diagnóstico sobre dados sintéticos.} O critério de recuperação do tipo de defeito mede \textbf{69,5\%} (139 de 200 matrizes) contra alvo de mais de 85\%, num corpus reprodutível de 200 matrizes, com limiar por modo. O resíduo é a mudança em degrau: 26 de 50 acertos. Com o gerador atual, de 7 QCs, a acurácia continua 69,5\%, e dos 24 erros da mudança em degrau, 17 caem na classe residual. Nos quatro arquivos reais, a classificação é a esperada.
+\end{itemize}
+
+% M8 e M16 (D191, D192, D361, D459); D560 (o modelo de sete QCs:
+% docs/medicoes-qz/resultados/p3_avalia_politicas.json); D573, SF3 (as oito trocas de rótulo), D574 e
+% D575 (o modelo distribuído, retreinado em 21/10/2026:
+% docs/medicoes-sf/resultados/derivadas/novo/p3_avalia_politicas_confere_v2.json, variante
+% v2_7qcs_aplicativo — dentro 35, deixando uma matriz de fora 22, deixando um modo de fora 27 e a
+% constante 30, de 40; McNemar p = 0,0078 e 0,5078; nos reais, acerta 3 de 4 e erra o neg_hilic);
+% D585 (o «Palpite» medido e a caixa «Automático»; --auto aprendida na linha de comando); M12 e D356;
+% D539, medição A7 (17 de 50 para «erratic», 5 para «gradual_drift» e 2 para «clean»). A reavaliação de
+% 27/10/2026: rodada CC, docs/medicoes-cc/resultados/cc_politica.json (commit 5077a652, D602, na branch
+% claude/trusting-goldberg-5yudqx e ainda não no main em 03/11/2026), bloco «depois»: n 88, acertos
+% dentro 78, loo 65, lomo 72, constante 73; McNemar loo p = 0,0386 (b 2, c 10), lomo p = 1 (b 0, c 1).
+% É outro conjunto que o das 40, e por isso entra ao lado e não no lugar.
+
+\textbf{A ressalva que estava em aberto foi resolvida.} O corpus da avaliação da política foi gerado quando o gerador produzia 8 QCs em vez dos 7 reais --- defeito corrigido depois ---, e o registro do resultado declarava isso como condição de invalidação a descartar por medição. O corpus foi refeito com 7 QCs, sobre o mesmo plano, e rotulado de novo, e a condição disparou. O modelo distribuído hoje foi retreinado nesse corpus em 21/10/2026, com os rótulos da floresta nova do SERRF, e os números acima são os dele.
+
+% M8, «Condição de invalidação» e o bloco de D560; D377; D560. Insumo 5.3.4, última ressalva.
+
+\textbf{Leitura contra o referencial.} O referencial apresenta o aprendizado de máquina como apoio a decisões metodológicas que envolvem muitas variáveis \cite{sen2021deep}, e o objetivo 3 promete orientar a escolha dos métodos mais adequados de pré-processamento, normalização e análise estatística \cite{galal2022applications}. O resultado precisa ser lido com dois recortes: a política aprendida escolhe só o corretor, e não a normalização nem a estatística; e, com um corpus derivado de um único estudo, ela acerta menos que a constante fora da amostra, com diferença significativa em uma das duas avaliações. Isso não confirma o referencial no recorte deste trabalho, e mostra que avaliar uma política aprendida exige mais matrizes, e de mais estudos, do que este trabalho teve. Na janela, a escolha automática do corretor deixou de usar o modelo aprendido e passou a ser uma medição; o modelo aprendido continua disponível como opção da linha de comando.
+
+\subsection{O sistema conversa com as ferramentas que o laboratório já usa?}\label{sec:5-3-5}
+
+\begin{itemize}
+\item \textbf{Exportação para o MetaboAnalyst.} No \texttt{pos\_\allowbreak{}hilic}, a exportação mantém 5.000 \textit{features} e remove 1.035 --- ficam as de menor RSD nos QCs, para caber no limite relatado pelo laboratório ---, e o caso de sistema CT-ART-003 foi aprovado.
+\item \textbf{Registro da concordância entre a máquina e o especialista.} O sistema registra a recomendação da máquina e a escolha do usuário de forma que os quatro estados do par são reconstruíveis; o conjunto é construível e está vazio, porque nenhuma sessão de uso foi gravada, e por isso não há taxa de concordância a relatar.
+\item \textbf{Fronteira de rede.} O servidor embutido na janela escuta apenas no endereço local da própria máquina, e o caso de sistema CT-SEG-001 foi aprovado.
+\end{itemize}
+
+% M10 (sem a metade do enriquecimento), M9 e M11; src/refino/desktop/servidor.py:81. Os itens do
+% enriquecimento de lista identificada e da predição de vias saem por D523.
+
+\textbf{Leitura contra o referencial.} O referencial cita o MetaboAnalyst como ferramenta de análise da área \cite{pang2024metaboanalyst} e os níveis de identificação de metabólitos \cite{sumner2007proposed}. O resultado exige escopo: a ferramenta exporta no formato do MetaboAnalyst, mas não identifica metabólitos, e não há nada no código sobre os níveis de identificação.
+
+\subsection{O processo de desenvolvimento produziu evidência mensurável?}\label{sec:5-3-6}
+
+\begin{itemize}
+\item \textbf{Auditoria de especificação.} Em 12 auditorias de especificação, cada uma feita antes de implementar a fase correspondente, houve defeito de especificação nas 12, com 91 defeitos nas oito fases que os contaram; as fabricações recusadas antes de virarem trabalho não foram medidas.
+\item \textbf{Registro de aprendizado.} Na versão publicada em 25/10/2026, o projeto tinha registradas 586 decisões, 265 armadilhas --- situações que pareceram certas e não eram --- e 44 divergências entre a ferramenta e o pipeline de referência ou outras implementações.
+\item \textbf{Teste de sistema.} A execução do plano achou defeito no critério em cinco dos sete reprovados, e arquivo de evidência desatualizado em mais um (\ref{sec:5-2-2}).
+\end{itemize}
+
+% M14; cabeçalhos «## D», «## AR» e «## DV» contados em 28/10/2026 sobre e889349, o commit da
+% windows-2026.10.25.1 (a última decisão é D593); em 04/10/2026, sobre 1562c8b, eram 535, 251 e 43.
+% Nem todas as divergências são contra o R.
+
+\textbf{Leitura.} É o argumento de método do capítulo: auditar a especificação antes de implementar achou defeito em todas as tentativas, e executar o plano de teste de sistema achou defeito no critério na maioria dos reprovados. Os dois números apontam na mesma direção --- especificação e critério de aceitação também são artefatos que falham ---, com duas ressalvas: os 91 defeitos não são uma categoria homogênea, e a taxa vale para este projeto.
+
+\textbf{Leitura contra o referencial.} Este resultado, e também o teste de sistema de \ref{sec:5-2}, avaliam conceitos de verificação e validação de software. O capítulo usa as ideias de oráculo de teste --- a fonte da resposta esperada, aqui o pipeline em R \cite{barr2015oracle} ---, de teste caixa-branca e caixa-preta, de classes de cenário positivo, negativo e de limite e de teste de regressão automatizado \cite{myers2012art}, de teste baseado em propriedades \cite{claessen2000quickcheck,maciver2019hypothesis} e de inserir um defeito de propósito para ver o teste reprovar, próximo do que a literatura chama de análise de mutação \cite{jia2011mutation}. Em software científico, obter esse oráculo é um dos desafios do teste \cite{kanewala2014testing,weyuker1982testing}.
+
+% Até 05/10/2026 este parágrafo terminava com uma sugestão ao grupo, que saiu do corpo do texto
+% para a revisora não a ler como texto da monografia: uma subseção curta no capítulo 2, «Verificação de
+% software científico», ou um parágrafo de abertura neste capítulo, com estas mesmas referências. As
+% citações passaram para o lado de cada conceito; a subseção no capítulo 2 continua a ser sugestão ao
+% grupo, porque aquele capítulo não é da frente de testes.
+
+O BUG-006 é a ilustração mais concreta desses conceitos: o teste que conferia a identidade byte a byte entre a linha de comando e a interface de programação era pulado em silêncio no Windows --- a verificação parecia ativa e não rodava ---, foi o teste de sistema que o expôs, e o conserto veio com um par causal, um teste que reprova sem a correção e passa com ela (\ref{sec:5-2-2} e \ref{sec:5-2-3}).
+
+\subsection{As figuras de qualidade da correção mostram o que o referencial diz que uma boa correção produz?}\label{sec:5-3-7}
+
+\textbf{Resposta curta:} sim, nas populações medidas --- os QCs ficam mais agrupados depois da correção nos 8 casos medidos, a figura ``antes'' é idêntica a uma PCA independente, e a barra sem correção coincide com a do R.
+
+\textbf{Os QCs ficam mais agrupados depois da correção.} O princípio da correção por QC é que, como o QC é sempre a mesma mistura, a variação dele é técnica, e uma correção que remove a variação técnica deve aproximar os QCs entre si. A razão entre a dispersão média dos QCs ao seu centroide e a das amostras de estudo, no plano das duas primeiras componentes (menor quer dizer QCs mais agrupados em relação às amostras), caiu nos 8 casos medidos (Tabela~\ref{tab:5-8}).
+
+\begin{table}[htbp]
+\centering
+\caption{Razão de dispersão dos QCs, antes e depois da correção (semente 42, população inteira de \textit{features})}\label{tab:5-8}
+\normalsize
+\begin{tabularx}{\linewidth}{|l|l|>{\hsize=1.0\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.0\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|}
+\hline
+\textbf{Modo} & \textbf{Antes} & \textbf{Depois, LOESS (\textit{features} retidas)} & \textbf{Depois, SERRF (\textit{features} retidas)} \\
+\hline
+\texttt{neg\_\allowbreak{}c18} & 0,2975 & 0,1028 (2.041 de 2.184) & 0,0669 (2.184 de 2.184) \\ \hline
+\texttt{neg\_\allowbreak{}hilic} & 0,9556 & 0,1921 (1.649 de 2.039) & 0,4812 (2.039 de 2.039) \\ \hline
+\texttt{pos\_\allowbreak{}c18} & 0,8236 & 0,4910 (2.486 de 2.572) & 0,4057 (2.572 de 2.572) \\ \hline
+\texttt{pos\_\allowbreak{}hilic} & 0,9770 & 0,7806 (5.537 de 6.035) & 0,1645 (6.035 de 6.035) \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{table}
+
+As colunas do LOESS e do SERRF foram medidas em 27/10/2026, com os padrões da janela e o código de cálculo do executável publicado em 25/10/2026, isto é, com a floresta do SERRF de 21/10/2026 e as duas implementações corrigidas em 24/10/2026, num computador com Linux; a coluna ``Antes'' não depende delas e se reproduz a quatro casas decimais. A mesma razão, calculada sobre as matrizes corrigidas pelo R, numa execução, também cai depois das duas correções nos quatro modos. Com a floresta e as correções atuais, o SERRF da ferramenta deixou os QCs mais agrupados que o do R nos quatro modos; na medição de 02/10/2026, com a floresta usada até 21/10/2026, era o do R que agrupava mais. \textit{Ressalvas:} com LOESS, a matriz corrigida reteve menos \textit{features} que a de entrada, as duas PCAs ficam em espaços diferentes e parte da queda pode vir do descarte, e a própria figura avisa disso; a PCA ``depois'' não tem conferência independente; e 8 casos de um estudo não são uma taxa de sucesso generalizável. As duas razões, a do R e a da ferramenta, são medidas dentro da amostra.
+
+\begin{itemize}
+\item \textbf{A figura ``antes'' é a mesma do R, e a barra sem correção também.} Correlação absoluta de 1,000000 nas duas primeiras componentes contra uma PCA independente, nos quatro modos; forma coincidente com o painel ``antes'' do R, por inspeção visual; e mediana do RSD dos QCs sem correção igual à do R nos quatro modos (\ref{sec:5-2-5}). Só a barra sem correção é comparável com o painel do R: o R avalia os métodos que ajustam modelo com um esquema próprio de validação cruzada, e a ferramenta, com um QC retirado de cada vez.
+\item \textbf{As barras fora da amostra repetem, com o LOESS da ferramenta, a forma do resultado de \ref{sec:5-3-2}.} Medidas de novo com o código corrigido, em 25/10/2026, num computador com Linux, sobre a população inteira, o LOESS fica pior que não corrigir em três modos (\texttt{pos\_\allowbreak{}hilic}, 147,43\% contra 143,81\%; \texttt{pos\_\allowbreak{}c18}, 32,40\% contra 24,15\%; \texttt{neg\_\allowbreak{}c18}, 19,32\% contra 15,50\%) e melhor no \texttt{neg\_\allowbreak{}hilic} (59,20\% contra 67,18\%); o SERRF vence no \texttt{pos\_\allowbreak{}hilic} (109,92\%), no \texttt{pos\_\allowbreak{}c18} (14,38\%) e no \texttt{neg\_\allowbreak{}c18} (15,12\%), o LOESS vence no \texttt{neg\_\allowbreak{}hilic}, e a política não se abstém em modo nenhum. Na verificação de 24/09/2026, no Windows 11, com a floresta e as implementações anteriores, o SERRF dava 135,48\% no \texttt{pos\_\allowbreak{}hilic} e 21,57\% no \texttt{pos\_\allowbreak{}c18}, e no \texttt{neg\_\allowbreak{}c18} a política se abstinha, porque o SERRF (15,47\%) superava a ausência de correção (15,50\%) por 0,03 ponto percentual; a abstenção acabou com a floresta adotada em 21/10/2026, ainda antes das correções. O mesmo código dá valores um pouco diferentes no Linux e no Windows: em 02/10/2026, com a versão anterior às correções, o LOESS do \texttt{pos\_\allowbreak{}hilic} deu 147,44\% no Linux e 147,61\% no Windows; o veredito vale nas duas.
+\item \textbf{A validação do PLS-DA aparece junto dos \textit{scores}, e aqui ela diz que não há separação.} Na janela montada (\texttt{pos\_\allowbreak{}hilic}, SERRF, \texttt{ATLL} $\times$ \texttt{NoHTLV}), a figura de \textit{scores} do PLS-DA traz no título Q$^{2}$ = $-$0,6329 e p de permutação de 0,8955 (com o SERRF e o LOESS anteriores às correções de 24/10/2026), e o \textit{volcano} da mesma execução mostra 0 das 5.942 \textit{features} sobrevivendo ao controle da taxa de falsas descobertas. É o comportamento que a regra do projeto exige: a separação visual não aparece sem os números que a validam. \textit{Ressalva:} uma execução e um par de grupos.
+\end{itemize}
+
+% Insumo 5.3.7b, a metade das figuras; D539, medições A5 (as 12 células e a razão sobre as
+% matrizes do R: com batch_loess 0,0831 / 0,1145 / 0,2195 / 0,7699, com SERRF 0,0807 / 0,5047 /
+% 0,5563 / 0,2329) e A4b (a plataforma). Os 110,14% e 14,34% e o fim da abstenção no neg_c18: D573,
+% SF2. Os itens da predição de vias e do defeito do p das vias saem por D523.
+% Os números de depois das correções vêm das rodadas do Ryzen, no Fedora, que em 03/11/2026 estão na
+% branch claude/trusting-goldberg-5yudqx e ainda não no main (achado G14 da revisão de gaps de
+% 29/10/2026, branch claude/vigilant-lovelace-lmmo8r). A Tabela 5.8: rodada RD, parte A5,
+% docs/medicoes-rd/resultados/derivadas/a5_pca_lado_a_lado.json (commit bcec46f2), bloco
+% tabela_5_3_7b, campo «medido»; medida sobre 6fe36c3, status OK, as quatro âncoras passaram; o R contra
+% a ferramenta no bloco predicao («INVERTIDA em pos_hilic, pos_c18», nas duas réguas) e na leitura L-A5
+% de D604, na mesma branch. As barras: rodada RC, docs/medicoes-rc/resultados/rc_relatorio_gerado.md,
+% tabela «M1 e M5», colunas «Depois», tratamento exclui, sobre 32a7a8e (D597). O src/ de 6fe36c3 e de
+% 32a7a8e é o de e889349, a windows-2026.10.25.1, menos o texto de duas ressalvas.
+
+\textbf{O que não se pode dizer:} que ``as figuras provam que a correção funciona'' --- elas mostram o agrupamento dos QCs em 8 casos de um estudo, e a figura avisa quando parte do efeito pode vir do descarte de \textit{features}.
+
+\textbf{Leitura contra o referencial.} As figuras foram avaliadas contra o princípio que as fundamenta e contra a inspeção da dispersão dos QCs em componentes principais, que a literatura de consenso recomenda \cite{broadhurst2018guidelines}. Nos quatro modos, com os dois corretores, a razão entre a dispersão dos QCs e a das amostras diminuiu após a correção nos oito casos medidos, com a ressalva do descarte de \textit{features} no LOESS. A PCA anterior à correção coincidiu numericamente com uma PCA independente e, por inspeção visual, com a figura do pipeline de referência, e a mediana do RSD sem correção coincidiu com a do R nos quatro modos. Medido fora da amostra, sobre a população inteira, o LOESS da ferramenta foi pior que não corrigir em três dos quatro modos, em 24/09/2026 e de novo em 25/10/2026, com o código corrigido, o mesmo padrão de \ref{sec:5-3-2}.
+
+\subsection{Resumo dos resultados}\label{sec:5-3-8}
+
+Os resultados do capítulo, cada um com o recorte que o acompanha, estão reunidos a seguir (Tabela~\ref{qua:5-2}).
+
+\begin{table}[htbp]
+\centering
+\caption{Resultados, com o recorte que acompanha cada número}\label{qua:5-2}
+\normalsize
+\begin{tabularx}{\linewidth}{|>{\hsize=0.68\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.16\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.16\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|}
+\hline
+\textbf{Pergunta} & \textbf{Número} & \textbf{O recorte que o acompanha} \\
+\hline
+fidelidade onde o oráculo é fechado & 2,22 $\times$ 10$^{-16}$ (tolerância de 10$^{-12}$) & a tolerância é propriedade do oráculo \\ \hline
+fidelidade executada como usuário & 872.440 células idênticas no caminho sem correção & no \texttt{batch\_\allowbreak{}loess}, comparar direto não tem poder: cinco execuções do R concordam entre si em 551 \textit{features} \\ \hline
+fidelidade do SERRF & concordância em 3 de 4 modos; 90,7\% a 159,2\% da redução do R & a concordância, depois das correções; a redução, antes delas \\ \hline
+recuperação da verdade & 2,6 vezes menos \textit{features} estragadas & floresta anterior a 21/10; só no \texttt{pos\_\allowbreak{}c18}; o R recupera melhor nos 4 modos \\ \hline
+perda de um QC & pior que o R nos quatro modos & floresta anterior a 21/10; efeito varia 66 vezes; significativo em dois \\ \hline
+a régua muda o veredito & dentro da amostra, o LOESS bate não corrigir em 4 modos; fora, perde em 3 & 500 \textit{features} por modo, após as correções; o vencedor só muda no \texttt{neg\_\allowbreak{}c18} \\ \hline
+validação do PLS-DA & Q$^{2}$ $\leq$ 0 em 0,860 sob a nula & \texttt{pos\_\allowbreak{}hilic}; nos quatro modos, de 0,860 a 0,900, com intervalos sobrepostos \\ \hline
+decisão automática & 67,5\% contra 75,0\% da regra constante, com um modo de fora & p = 0,5078; com uma matriz de fora, 55,0\% contra 75,0\%, p = 0,0078 \\ \hline
+diagnóstico sintético & 69,5\% & alvo de mais de 85\%; o resíduo é a mudança em degrau \\ \hline
+interoperabilidade & 5.000 mantidas e 1.035 removidas & \texttt{pos\_\allowbreak{}hilic}; ficam as de menor RSD \\ \hline
+processo & defeito em 12 de 12 auditorias & 91 defeitos nas oito fases que os contaram \\ \hline
+figuras: PCA ``antes'' & correlação absoluta de 1,000000 & quatro modos; a PCA ``depois'' não tem conferência independente \\ \hline
+figuras: agrupamento dos QCs & caiu em 8 de 8 casos & medido de novo em 27/10, com o código corrigido; com LOESS, parte da queda pode vir do descarte de \textit{features} \\ \hline
+figuras: barra sem correção & igual à mediana do R nos 4 modos & as barras dos corretores usam outro estimador que o R \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{table}
+
+Os números do SERRF e do LOESS no Tabela~\ref{qua:5-2} são anteriores às correções de 24/10/2026, salvo a concordância do SERRF, a linha da régua e o agrupamento dos QCs, medidos depois delas.
+
+% Saíram, por D523: «réguas sem ótimo comum» (M6), «robustez» (M20), «vias pelo caminho da
+% janela» e «defeito do p das vias»; M7 sai de «a régua decide», e o enriquecimento sai da
+% interoperabilidade.
+
+\section{Avaliação com usuários do laboratório}\label{sec:5-4}
+
+\subsection{Objetivo e desenho}\label{sec:5-4-1}
+
+A avaliação com usuários tem dois objetivos: verificar se profissionais do laboratório conseguem, sozinhos, fazer a tarefa central da ferramenta --- corrigir a variação técnica de um estudo e gerar o arquivo de saída para o MetaboAnalyst ---, e registrar a percepção deles sobre a facilidade de uso e a confiança nos resultados. São os casos CT-USA-001 e CT-USA-002 do plano (\ref{sec:5-2-1}).
+
+\textbf{Protocolo.} Para reduzir o custo da participação de profissionais com agenda restrita, a avaliação é feita sem sessão marcada e sem observação. Cada participante recebe o programa e uma mensagem com a tarefa e o endereço do formulário, usa o programa no próprio computador, com um estudo do próprio laboratório e no próprio ritmo, e depois responde o formulário de uma vez.
+
+% Protocolo decidido pelo usuário em 04/10/2026 (docs/questionario-pos-uso.md, «Protocolo»). O
+% plano registrava como risco a disponibilidade do público-alvo (planilha, C27).
+
+\textbf{O que muda por não haver observação.} O critério original do plano para a usabilidade era de observação: a tarefa concluída sem intervenção do grupo e o ponto de parada registrado com a frase que o participante disse. Sem observação, essa evidência não existe. O que a avaliação produz é a conclusão da tarefa \textbf{autodeclarada} e o ponto de parada \textbf{descrito pelo próprio participante} --- uma evidência mais fraca, e é assim que este capítulo a nomeia. A regra que vinha do protocolo observado continua a valer: nota de satisfação alta com tarefa não concluída não valida a funcionalidade.
+
+\textbf{Participantes.} Profissionais do laboratório parceiro que hoje fazem o refino dos dados manualmente, em planilha; o plano exige ao menos três. A versão do programa que eles usaram é a registrada no arquivo de procedência da pasta entregue: \textbf{[A PREENCHER: versão e data do executável usado pelos participantes]}.
+
+\subsection{O instrumento}\label{sec:5-4-2}
+
+O instrumento é um Google Formulário (versão 1.5, de 21/10/2026), que abre com o Termo de Consentimento Livre e Esclarecido. O termo informa, em quatro parágrafos, a finalidade da pesquisa e quem a conduz, a tarefa a fazer antes de responder, a duração de cerca de 10 minutos, o caráter voluntário e não remunerado da participação e a possibilidade de desistir sem justificativa, o risco mínimo, que o formulário não pede nome nem e-mail, que os arquivos do estudo não são enviados aos pesquisadores, e que trechos podem ser citados apenas como ``Participante 1'', ``Participante 2'' e assim por diante. O aceite é a primeira pergunta, obrigatória: sem ele, não há coleta.
+
+% docs/TCLE-teste-de-usabilidade.md, versão 4.0. A pergunta sobre a necessidade de submissão ao
+% Comitê de Ética em Pesquisa foi levada ao orientador.
+
+\textbf{[A CONFIRMAR COM O ORIENTADOR: se a pesquisa precisa de submissão ao Comitê de Ética em Pesquisa, e como o texto deve declarar a resposta.]}
+
+O formulário tem 25 perguntas, 10 delas obrigatórias, em cinco seções (Tabela~\ref{tab:5-9}).
+
+\begin{table}[htbp]
+\centering
+\caption{Seções do formulário}\label{tab:5-9}
+\normalsize
+\begin{tabularx}{\linewidth}{|>{\hsize=0.62\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|>{\hsize=1.38\hsize\linewidth=\hsize\raggedright\arraybackslash\hspace{0pt}}X|r|r|}
+\hline
+\textbf{Seção} & \textbf{Conteúdo} & \textbf{Perguntas} & \textbf{Obrigatórias} \\
+\hline
+1 --- Aceite & o consentimento & 1 & 1 \\ \hline
+2 --- A tarefa & concluiu, sozinho ou com ajuda; onde parou; comparação com o jeito atual & 3 & 2 \\ \hline
+3 --- As telas & oito afirmações em escala de 1 a 5, uma ou duas por aba, na ordem da janela & 8 & 6 \\ \hline
+4 --- Facilidade de uso & a \textit{System Usability Scale} (SUS), de 10 itens, sem alteração & 10 & 0 \\ \hline
+5 --- Confiança e observações & confiaria num resultado para uma decisão do trabalho; quando não confiou na tela; outras observações & 3 & 1 \\ \hline
+\textbf{Total} &  & \textbf{25} & \textbf{10} \\ \hline
+\end{tabularx}
+\fonte{Elaborado pelos autores.}
+\end{table}
+
+As oito afirmações da seção 3 cobrem as abas ``Preparar o estudo'' (a mensagem de erro diz o que estava errado; a ferramenta sugeriu uma correção e explicou por quê), ``Corrigir e levar o resultado'' (gerar e salvar sem ajuda; saber, durante a espera, que o programa estava calculando), ``Qualidade do resultado'' (várias medidas ajudam mais que uma nota única), ``Gráficos'' (encontrar a figura desejada) e ``O que este aplicativo NÃO faz'' (ficaram claras as limitações), e a faixa ``Trabalhos em curso'', no pé da janela. A afirmação sobre a sugestão explicada é a que mede, do lado do usuário, o apoio à decisão do objetivo 3. As abas da análise de multiverso e das vias metabólicas ficam fora, porque são trabalho futuro.
+
+A escala SUS é aplicada sem alteração, para que o resultado seja comparável com a literatura \cite{brooke1996sus}. A penúltima pergunta --- ``Houve algum momento em que você não confiou no que a tela dizia?'' --- é a que o plano chama de decisiva: ela mede a única coisa que uma ferramenta de decisão metodológica não pode perder. Não é obrigatória, porque deixá-la em branco também é resposta. A última, também aberta e não obrigatória, recolhe qualquer outra observação que o formulário não tenha perguntado.
+
+\textbf{Verificação do instrumento.} O formulário foi criado e atualizado por script, gerado a partir do documento que descreve as perguntas, e a página publicada foi conferida contra esse documento a cada versão --- na atual, 25 perguntas, 10 obrigatórias, as opções de cada uma e o texto do termo, sem nenhuma divergência. A primeira versão publicada (1.2) tinha o termo longo e uma pausa no meio do formulário, para o participante usar o programa entre o perfil e as perguntas sobre o uso; antes da distribuição, a versão 1.3 encurtou o termo e tirou a pausa, porque, sem observação, ela só acrescentava passos --- e, sem login, uma aba perdida apagaria o que já tinha sido respondido. A versão 1.4, também antes da distribuição, tirou as perguntas de perfil, porque o público é pequeno e conhecido do grupo, e duas das perguntas abertas do fim, para o formulário correr mais rápido. A versão 1.5, já com o formulário distribuído, acrescentou no fim a pergunta aberta sobre outras observações; ela não apaga nem altera as respostas anteriores, e quem respondeu antes dela a tem em branco, de modo que ela é analisada só entre quem a viu.
+
+% docs/questionario-pos-uso.md, «Formulário do TCC (1.2 a 1.5)»: 1.2 criada em 04/10/2026
+% às 21:51 e conferida; 1.3 aplicada às 23:10; 1.4 aplicada em 07/10/2026 às 14:49; 1.5 aplicada em
+% 21/10/2026 às 18:29 — as três idênticas à previsão do simulador e sem divergência contra o
+% documento. Os formulários 1.0 e 1.1 são de outra disciplina.
+
+\subsection{Análise prevista}\label{sec:5-4-3}
+
+\begin{itemize}
+\item \textbf{Escore SUS por participante}, calculado só para quem respondeu os dez itens: nos itens ímpares, o valor menos 1; nos pares, 5 menos o valor; a soma multiplicada por 2,5, numa escala de 0 a 100. A média é relatada com o número de participantes ao lado, e, com três a cinco participantes, ela é descritiva, e não uma estimativa populacional; a interpretação usa a escala de adjetivos de Bangor, Kortum e Miller (\citeyear{bangor2008empirical}, \citeyear{bangor2009determining}).
+\item \textbf{Conclusão da tarefa}, contada nas três categorias da pergunta: sozinho, com ajuda, não concluída.
+\item \textbf{Afirmações por aba}, relatadas pela mediana e pela distribuição das respostas, e não pela média.
+\item \textbf{Respostas abertas}, citadas literalmente, como ``Participante N'', sem correção de estilo.
+\item \textbf{Cada ponto de dificuldade relatado} vira item de trabalho futuro ou defeito registrado, que é critério de saída do plano.
+\end{itemize}
+
+\subsection{Resultados}\label{sec:5-4-4}
+
+\textbf{[A PREENCHER quando as respostas chegarem: número de participantes e perfil; conclusão da tarefa; escore SUS por participante e a média com o número ao lado; mediana e distribuição de cada afirmação; distribuição da confiança; as respostas abertas, citadas; e os itens de trabalho futuro ou defeitos gerados a partir delas.]}
+
+\subsection{Limites desta avaliação}\label{sec:5-4-5}
+
+A conclusão da tarefa é autodeclarada, e não observada; não há medida de tempo nem registro das hesitações no momento em que acontecem. O número de participantes é pequeno, de um único laboratório, e cada participante escolhe o próprio estudo, o que varia a dificuldade da tarefa entre eles. E a avaliação é sobre a versão do programa que o laboratório recebeu, que precisa ser nomeada junto com os resultados.
+
+\section{Limites da verificação}\label{sec:5-5}
+
+\begin{enumerate}
+\item \textbf{A suíte foi desenhada para Linux, e a máquina do grupo roda o Python nativo do Windows.} Parte dos testes invoca recursos exclusivos de sistemas POSIX: a camada de contêiner, por exemplo, reprova no Windows, e o executor do script R original não é verificável a partir do Python nativo do Windows. A planilha registra que 111 testes do portão de commit invocam o shell POSIX.
+\item \textbf{Em Windows, ``\texttt{make check} verde'' não é alcançável, e a régua é a lista exata de reprovações.} Em 19/09/2026, a suíte rodou em quatro seleções e somou 15 reprovações, todas com causa atribuída, em 24 min 39 s; das 14 da segunda metade, 11 estão ligadas ao Docker, que saiu do produto final, ou ao modo \texttt{docker compose}, que saiu de uso. Na execução mais recente, de 25/10/2026, com o mesmo código da versão publicada nesse dia, as quatro seleções somaram 17 reprovações, também todas com causa atribuída: as 11 ligadas ao Docker e uma comparação com o R que já reprovavam antes; 4 de um portão que confere a procedência de uma medição do SERRF e reprova, como esperado, quando o código do SERRF muda, até a medição ser refeita, o que foi feito no mesmo dia; e 1 de um portão de arquivos declarados, por uma pendência já registrada. A régua oficial não mudou, e reduzi-la é decisão do orientador.
+\item \textbf{A suíte inteira, numa execução única, quebra no Windows.} Os testes da janela e das figuras, rodados juntos no mesmo processo, terminavam com corrupção de memória (\texttt{0xc0000374}) aos 43\% da segunda metade; por isso rodam separados, e as exclusões somam 463 de 3.125 testes (15\%) da segunda metade. Uma causa foi achada e corrigida em 25/09/2026 --- no reprodutor, de 9 quebras em 20 execuções para 0 em 20 ---, e um segundo mecanismo continua aberto.
+\item \textbf{\texttt{make test-\allowbreak{}all} custa horas:} um critério mede cerca de 4 h, e um módulo de estimadores passa de 30 min. Na prática, rodam-se os arquivos que a mudança alcança.
+\item \textbf{Não há integração contínua:} nada roda por rotina, e a camada de contêiner só roda por execução deliberada.
+\item \textbf{O teste de sistema é sobre o executável de 09/09/2026}, e o publicado mais recente é o de 25/10/2026 (\ref{sec:5-1-3}).
+\item \textbf{A verificação das figuras (\ref{sec:5-2-5}) não rodou o executável}: os caminhos rodaram no ambiente de desenvolvimento, e a janela montada usou a plataforma gráfica virtual do Qt.
+\item \textbf{Populações estreitas nas figuras:} um valor por parâmetro (semente 42, uma variante de RSD, um lote, paralelismo ligado); a PCA ``depois'' sem conferência independente; 9 das 32 figuras abertas e inspecionadas visualmente, e as outras 23 conferidas pelo texto extraído e pelos números; e a gravação em PNG e a ampliação não foram exercitadas.
+\item \textbf{A avaliação com usuários é autodeclarada e pequena} (\ref{sec:5-4-5}).
+\end{enumerate}
+
+% docs/linha-de-base-windows.md (995–1019, 1627–1659); D251, D297, D511, D514 e o item 93 de
+% docs/trabalho-futuro.md; itens 8, 10 e 25 do mesmo arquivo; D226. A execução de 25/10/2026: a nota
+% de publicação de D593, sobre e333b56, que tem o mesmo src/ e os mesmos tests/ de e889349 — 0
+% reprovações em tests/unit; 16 na segunda metade (9 de test_docker_capability.py, 2 de
+% test_compose.py e 1 de golden/test_insample_medians.py, que reprovam também na base, e 4 do portão
+% da dispersão); 1 em test_declared_artifacts.py (os 16 pares de AR186); e nenhuma nos arquivos da
+% janela e das figuras. Saíram, por D523: a evidência do
+% enriquecimento ([CA-11.7]) no item 1, os itens 10 e 12 do insumo e a parte das vias dos itens 9 e 11.
+% O item 8 do insumo (BUG-006) está em 5.2.3.
+
+\endgroup
