@@ -1,43 +1,353 @@
 % ----------------------------------------------------------
-% Análise dos Resultados
+% Desenvolvimento: requisitos, planejamento e arquitetura
 % 
 % ----------------------------------------------------------
 
 \chapter[Desenvolvimento]{Desenvolvimento}
 
-\section{Levantamento e especificação dos requisitos} Campari
+Este capítulo apresenta o desenvolvimento do Refino, aplicativo para Windows destinado ao tratamento de matrizes de dados metabolômicos obtidas por cromatografia líquida acoplada à espectrometria de massas. São descritos o levantamento dos requisitos, a organização do projeto e a arquitetura que articula a interface gráfica, o processamento científico e a persistência. A exposição considera as necessidades relatadas pelo laboratório parceiro, as decisões registradas durante a implementação e as funcionalidades efetivamente acessíveis pelo fluxo principal da aplicação.
+
+O escopo apresentado compreende a preparação dos arquivos, a validação, o diagnóstico, a correção do sinal, o pré-processamento, as análises estatísticas e a geração de resultados. A análise de multiverso e a predição e o enriquecimento de vias metabólicas foram excluídos do escopo da monografia e da entrega avaliada, embora existam componentes em versão beta no repositório e no executável. Essa delimitação acompanha a adotada no capítulo de testes. A presença de uma implementação, por si só, não é tomada como comprovação de sua validação em todas as condições de uso.
+
+A entrada do Refino corresponde a uma matriz tabular já produzida pelo processamento primário, e não ao arquivo instrumental bruto. A detecção e o alinhamento dos picos permanecem no fluxo anterior, realizado com ferramentas como o Progenesis QI. Além disso, uma \textit{feature}, identificada por características do sinal como tempo de retenção e razão massa/carga, não equivale necessariamente a um metabólito identificado. O tratamento e as análises apresentados neste capítulo operam sobre essas variáveis e não estabelecem, isoladamente, a identidade química ou a relevância biológica de cada sinal.
+
+A descrição da arquitetura e dos requisitos complementa a metodologia do capítulo anterior e antecede a apresentação do modelo de dados e da implementação nas seções seguintes. As evidências de funcionamento, as diferenças entre versões e as limitações das verificações são discutidas no capítulo de testes, especialmente nas Seções~\ref{sec:5-1-3} e~\ref{sec:5-5}.
+
+\section{Levantamento e especificação dos requisitos}
+\label{sec:4-requisitos}
+
+Os requisitos foram organizados para relacionar as necessidades do laboratório às operações oferecidas pelo aplicativo e às verificações empregadas no desenvolvimento. A especificação contempla tanto os resultados esperados pelo pesquisador quanto as condições necessárias para produzir, interpretar e recuperar esses resultados. Assim, a correção numérica de uma operação é acompanhada por requisitos de validação da entrada, explicitação dos parâmetros, apresentação da qualidade e conservação do contexto da execução.
 
 \subsection{Processo de levantamento dos requisitos}
 
+O levantamento ocorreu por meio de reuniões presenciais e online, trocas de mensagens pelo WhatsApp, comunicações por email e uma demonstração presencial no laboratório de metabolômica. Essas interações permitiram conhecer o fluxo de trabalho dos pesquisadores e discutir os arquivos utilizados, as dificuldades de preparação dos dados e as informações necessárias para avaliar um tratamento. A demonstração também forneceu um contexto de uso para discutir a organização da interface e o encadeamento das operações.
+
+As informações obtidas foram complementadas pela análise das matrizes de medições, dos arquivos de descrição das amostras e dos procedimentos de referência em R disponibilizados ao projeto. Essa análise aproximou os relatos dos usuários das condições concretas de processamento: estrutura dos arquivos, representação das intensidades, identificação dos controles de qualidade, ordem de injeção e associação das amostras aos grupos experimentais. O arquivo de medições e sua lista de amostras passaram, dessa forma, a constituir uma entrada conjunta, cuja coerência precisa ser verificada antes do cálculo.
+
+Entre as necessidades registradas encontra-se a preparação manual de matrizes em planilha para continuidade da análise em outras ferramentas. O relato estabelece a ocorrência desse procedimento, mas não permite afirmar sua frequência nem a inexistência de critérios informais. A resposta do projeto foi tornar explícitos os critérios aplicados pelo software e registrar as variáveis removidas na exportação, permitindo distinguir uma seleção executada pelo aplicativo de uma alteração sem registro do procedimento.
+
+O refinamento dos requisitos acompanhou a implementação. A especificação foi decomposta em fases, com critérios de aceitação, e complementada por decisões técnicas e registros de divergências em relação ao processamento de referência. Posteriormente, os roteiros de teste do grupo relacionaram requisitos a cenários de utilização. Como as funcionalidades e a interface evoluíram após esses roteiros, a rastreabilidade precisa considerar a versão em que cada verificação foi realizada.
+
+A formalização utilizou documentos com finalidades distintas. O documento de implementação reúne os contratos e os critérios de aceitação; o registro de decisões conserva as alterações e suas justificativas; o registro de divergências identifica diferenças em relação ao procedimento em R; e o registro de problemas de implementação conserva as situações que motivaram verificações adicionais. Essa organização permite acompanhar a evolução da solução sem interpretar uma descrição histórica como requisito vigente. Em particular, os primeiros desenhos de interface e os requisitos de funcionalidades posteriormente excluídas precisam ser lidos à luz das decisões de escopo.
+
+Os arquivos analisados abrangem modos de aquisição que combinam polaridade positiva ou negativa com separação C18 ou HILIC. A especificação explicita essas condições, mas as observações obtidas nos conjuntos de referência não são tratadas como propriedades de qualquer estudo futuro. Quantidade de amostras, número de QCs e distribuição dos grupos são características da entrada e devem ser verificadas a cada carregamento.
+
 \subsection{Atores e casos de uso}
+
+O ator principal é o pesquisador ou analista do laboratório, responsável por selecionar os dados, avaliar as informações de diagnóstico, configurar o processamento e interpretar os resultados. A interface não estabelece perfis de autenticação distintos. Assim, pesquisador, avaliador e integrante do grupo que executa uma tarefa equivalente compartilham o mesmo fluxo operacional, ainda que tenham objetivos diferentes ao utilizar o aplicativo.
+
+O operador da linha de comando constitui uma forma adicional de interação, voltada à execução por comandos e à repetição de procedimentos. O desenvolvedor atua na manutenção, na verificação e no empacotamento do software. O Progenesis QI é a ferramenta de origem dos arquivos tabulares, e o MetaboAnalyst é um possível destino dos arquivos exportados. Essas relações representam intercâmbio por arquivos; não significam integração automática com os dois programas.
+
+Os principais casos de uso do fluxo entregue são os seguintes:
+\begin{enumerate}
+\item \textbf{Preparar e validar o estudo:} selecionar o par de arquivos e o modo de aquisição, verificar sua estrutura e examinar os erros e avisos encontrados.
+\item \textbf{Diagnosticar os dados:} consultar indicadores de qualidade, indícios de variação técnica e propostas de organização dos lotes.
+\item \textbf{Definir a correção:} selecionar o corretor, consultar uma proposta acompanhada de justificativa ou executar a comparação dos métodos disponíveis.
+\item \textbf{Executar o tratamento:} configurar e realizar a correção e o pré-processamento, pelo fluxo completo ou por etapas, com acompanhamento do trabalho.
+\item \textbf{Avaliar os resultados:} consultar as métricas e as figuras correspondentes à matriz e ao estágio de processamento considerado.
+\item \textbf{Obter os artefatos:} gerar e salvar as matrizes corrigida e processada e exportar a entrada compatível com o MetaboAnalyst.
+\item \textbf{Interromper uma execução:} solicitar o cancelamento e acompanhar a transição do trabalho para seu estado terminal.
+\end{enumerate}
+
+No caso de uso de tratamento, os arquivos válidos e os parâmetros aceitos constituem as precondições. O fluxo principal envolve o envio da configuração, a execução das operações e a disponibilização dos resultados. Arquivos inconsistentes, parâmetros incompatíveis, cancelamento e falha de processamento constituem fluxos alternativos que precisam produzir uma indicação compreensível, sem apresentar uma saída parcial como resultado concluído.
+
+A escolha da correção possui dois percursos distintos. Na proposta preditiva, o sistema utiliza características da matriz para sugerir uma opção; na comparação medida, executa os candidatos e os avalia segundo o estimador definido. A precondição da comparação é que os métodos sejam aplicáveis aos controles e aos lotes disponíveis. Seu resultado deve indicar a régua utilizada e permitir abstenção quando a diferença não justifica uma escolha. O termo ``melhor corretor'' refere-se, portanto, ao critério e à população avaliados, sem expressar superioridade absoluta.
+
+Na exportação, a precondição é a existência de uma entrada e de uma configuração compatíveis com o formato solicitado. A pós-condição é a disponibilização do arquivo e do registro do recorte aplicado. O cancelamento antes da conclusão e a ausência de um artefato válido são fluxos alternativos; nesses casos, a interface deve informar o estado do trabalho e não oferecer o resultado como se estivesse concluído.
 
 \subsection{Requisitos funcionais}
 
+Os identificadores abaixo acompanham o levantamento relacionado ao plano de testes do grupo e utilizado no capítulo de testes. A numeração mantém lacunas correspondentes às funcionalidades excluídas, evitando atribuir um novo significado a identificadores já empregados nos registros do projeto.
+
+\begin{description}
+\item[RF-01 --- Seleção da entrada.] Permitir selecionar os arquivos de medições e de descrição das amostras e informar o modo de aquisição, distinguindo a finalidade de cada arquivo.
+\item[RF-02 --- Validação.] Verificar a estrutura e a coerência da entrada, apresentar erros e avisos e impedir a continuidade quando houver condição incompatível com o processamento solicitado.
+\item[RF-03 --- Diagnóstico.] Produzir um perfil dos dados e apresentar o diagnóstico e as propostas de fronteiras de lote, preservando a distinção entre indicação computacional e confirmação pelo pesquisador.
+\item[RF-04 --- Apoio à escolha.] Oferecer a proposta de corretor com justificativa e permitir a comparação por execução dos métodos, distinguindo o palpite produzido pelo modelo da medição efetiva de desempenho.
+\item[RF-05 --- Correção.] Disponibilizar as opções \texttt{none}, \texttt{serrf} e \texttt{loess}. A primeira mantém o sinal sem correção e permite estabelecer uma condição de comparação.
+\item[RF-06 --- Grupos experimentais.] Receber e validar o par de grupos utilizado nas análises que exigem essa definição, recusando referências a grupos inexistentes.
+\item[RF-07 --- Validação do PLS-DA.] Apresentar o PLS-DA acompanhado do Q$^{2}$ e do valor de $p$ obtido por permutação, evitando que a separação visual seja apresentada isoladamente como evidência de capacidade preditiva.
+\item[RF-08 --- Reprodução.] Permitir repetir o processamento com a mesma entrada, configuração e semente no ambiente considerado.
+\item[RF-09 --- Progresso.] Atualizar o acompanhamento dos trabalhos do fluxo principal sem exigir que o pesquisador solicite manualmente cada leitura.
+\item[RF-10 --- Matrizes de saída.] Gerar e salvar os artefatos de correção e pré-processamento, distinguindo o estágio representado por cada arquivo.
+\item[RF-11 --- Exportação.] Produzir arquivo no formato de intercâmbio com o MetaboAnalyst e, quando aplicado o teto de 5.000 variáveis definido pelo projeto, selecionar pelo critério de RSD e registrar as exclusões. Esse teto descreve a política implementada no Refino, sem constituir afirmação universal sobre todas as modalidades de uso da ferramenta externa.
+\item[RF-13 --- Cancelamento.] Permitir solicitar a interrupção dos trabalhos acompanhados pela aplicação e informar seu estado.
+\item[RF-15 --- Qualidade.] Exibir um conjunto de métricas de qualidade e identificar a variante e o estimador utilizados, permitindo interpretar os resultados além de um único indicador.
+\item[RF-16 --- Limites.] Apresentar as restrições da aplicação e o alcance das operações oferecidas.
+\item[RF-17 --- Linha de comando.] Oferecer os comandos de correção, processamento e exportação com compartilhamento dos mecanismos de geração dos artefatos e registro da configuração utilizada.
+\item[RF-18 --- Análises estatísticas.] Permitir solicitar as análises implementadas no fluxo da janela, incluindo PCA, PLS-DA binário, comparação univariada entre grupos, ANOVA, PERMANOVA, correlações, agrupamentos e classificadores, respeitando os parâmetros e as condições exigidos por cada procedimento.
+\item[RF-19 --- Visualização.] Reunir as figuras em um seletor, permitir sua inspeção e oferecer os recursos de ampliação e exportação. As figuras devem identificar a matriz e o contexto de processamento a que se referem.
+\item[RF-20 --- Qualidade da correção.] Apresentar figuras de diagnóstico e comparação antes e depois do tratamento, incluindo trajetória dos QCs, dispersão, RSD e composição das amostras, indicando quando faltam dados necessários para uma representação.
+\end{description}
+
+Os requisitos RF-18 a RF-20 correspondem a extensões posteriores ao plano inicial. Sua presença nesta especificação não implica cobertura pelos mesmos casos de sistema usados na primeira avaliação. A existência de um algoritmo no núcleo também não implica sua disponibilidade na janela: por exemplo, a documentação distingue componentes de PLS-DA multiclasse e agrupamento hierárquico dos caminhos efetivamente expostos ao pesquisador. A verificação das figuras e suas limitações são detalhadas nas Seções~\ref{sec:5-2-4} e~\ref{sec:5-2-5}.
+
+O processamento por etapas acrescenta a possibilidade de examinar a correção e o pré-processamento antes da execução final. Cada resultado intermediário deve permanecer associado à entrada e aos parâmetros que o produziram. Alterações relevantes devem desatualizar a etapa correspondente e as dependentes, evitando reutilizar visualmente um resultado que deixou de representar a configuração corrente. Essa extensão possui verificações específicas e não é apresentada como se já estivesse coberta pelos casos do plano anterior à sua implementação.
+
 \subsection{Requisitos não funcionais}
+
+Os requisitos não funcionais estabelecem as condições de operação e de qualidade técnica da solução. Na identificação utilizada pelo plano, RNF-01 a RNF-03 tratam, respectivamente, da abertura do aplicativo sem instalação separada dos ambientes de execução, da organização das saídas e da verificação do empacotamento. O produto é distribuído como executável Windows com os componentes necessários, utilizando SQLite para dispensar a configuração de um servidor de banco de dados.
+
+O RNF-05 estabelece que a opção de paralelismo deve modificar o custo da execução sem alterar o resultado científico esperado. O RNF-06 restringe a escuta da API embutida à própria máquina. No aplicativo, o endereço de escuta é \texttt{127.0.0.1}; o uso de HTTP interno não corresponde à disponibilização de um serviço público ou a um ambiente de acesso simultâneo por vários usuários. Essa restrição reduz a exposição pela rede, mas não equivale a autenticação ou a isolamento de outros processos locais.
+
+A reprodutibilidade é apoiada pelo registro da semente e da especificação, pela fixação das dependências e pelo tratamento explícito das diferenças numéricas. A igualdade observada em um ambiente não deve ser generalizada para quaisquer versões de bibliotecas ou plataformas. Analogamente, a reprodução dos valores calculados não exige que arquivos de imagem sejam idênticos byte a byte entre ambientes de renderização diferentes.
+
+Outro requisito é preservar a matriz de entrada durante as transformações. O domínio utiliza estruturas imutáveis e protege o arranjo numérico contra escrita, enquanto as operações produzem novos resultados. Isso permite comparar o estado anterior e o posterior e compartilhar uma correção em memória sem que outra etapa modifique seu conteúdo inadvertidamente.
+
+A manutenibilidade é apoiada pela organização modular, pela tipagem, pelas verificações de estilo e pela suíte automatizada. O projeto declara Python 3.12 e um piso de cobertura de 85\% para o código considerado pela configuração de testes. Esse piso é uma condição de verificação do desenvolvimento, não uma demonstração de ausência de defeitos. A separação entre cálculo e infraestrutura constitui uma orientação arquitetural, cuja aplicação precisa ser examinada nos componentes concretos, sem pressupor uma garantia automática sobre todo o repositório.
+
+Por fim, a utilização deve manter a janela responsiva, apresentar progresso e permitir cancelamento cooperativo. Não se estabelece um tempo universal de resposta para correções de matrizes de diferentes dimensões: seu custo depende da configuração, do método, do equipamento e da disponibilidade de recursos. O cancelamento também depende de pontos de interrupção previstos nos algoritmos, não representando encerramento instantâneo em qualquer instrução.
+
+A organização das saídas exige distinguir a distribuição do programa dos dados particulares utilizados nos ensaios. O RNF-02 contempla os resultados de referência incluídos na pasta entregue diretamente ao laboratório, com sua procedência; essa exigência não significa incluir matrizes clínicas no arquivo de distribuição do código. A documentação de empacotamento separa o programa, o banco de execuções, os registros de operação e as saídas científicas. A preservação e a circulação desses arquivos devem considerar que nomes de amostras e metadados podem revelar informações do estudo.
+
+Os requisitos de portabilidade do produto também diferem dos pré-requisitos de desenvolvimento. A execução do aplicativo Windows utiliza os componentes empacotados, enquanto parte da suíte de desenvolvimento depende de ferramentas POSIX e de ambientes específicos para as comparações com R. Essa distinção impede que as exigências de preparação do repositório sejam apresentadas ao pesquisador como condições para abrir o aplicativo. A documentação não estabelece uma configuração mínima universal de hardware nem uma versão mínima de Windows validada para qualquer computador.
 
 \subsection{Critérios de aceitação e rastreabilidade}
 
+Os critérios de aceitação traduzem requisitos em condições verificáveis. A documentação técnica utiliza identificadores \texttt{CA} para critérios e \texttt{TO} para testes obrigatórios; o plano do grupo utiliza identificadores \texttt{CT} para cenários. Essas categorias cumprem funções complementares: o requisito descreve o comportamento, o critério define a condição esperada e o teste estabelece o procedimento para verificar essa condição.
+
+\begin{table}[htbp]
+\centering
+\caption{Exemplos de rastreabilidade dos requisitos do fluxo principal.}
+\label{tab:4-rastreabilidade}
+\small
+\begin{tabularx}{\textwidth}{|l|X|l|}
+\hline
+\textbf{Requisito} & \textbf{Comportamento verificado} & \textbf{Caso do plano} \\ \hline
+RF-01 & Seleção dos arquivos e detecção da troca de posições. & CT-ARQ-001 e 002 \\ \hline
+RF-02 & Validação da estrutura e apresentação das inconsistências. & CT-VAL-001 e 002 \\ \hline
+RF-05 & Execução das opções de correção. & CT-PIP-001 a 003 \\ \hline
+RF-07 & PLS-DA acompanhado das medidas de validação. & CT-PIP-005 \\ \hline
+RF-10 & Geração dos artefatos de saída. & CT-ART-001 e 002 \\ \hline
+RF-11 & Exportação segundo o formato e o recorte definidos. & CT-ART-003 \\ \hline
+RF-15 & Apresentação das métricas e de sua identificação. & CT-QUA-001 e 002 \\ \hline
+RNF-06 & Restrição da comunicação à máquina local. & CT-SEG-001 \\ \hline
+\end{tabularx}
+\par\smallskip{\footnotesize Fonte: elaboração dos autores a partir do plano de testes e da documentação do projeto.}
+\end{table}
+
+No processamento por etapas, essa relação é complementada pelos arquivos \texttt{test\_api\_etapas.py} e \texttt{test\_desktop\_etapas.py}, que exercitam o contrato das prévias e o estado das etapas na interface. A paridade entre linha de comando e API é tratada em testes próprios, assim como o endereço de escuta e o arranque do servidor. A associação de um requisito a um arquivo de teste indica onde sua verificação é implementada; o resultado e as condições de execução são discutidos no capítulo seguinte.
+
+O desenvolvimento também utiliza testes negativos, nos quais uma condição inválida deve provocar uma recusa ou uma reprovação. Essa prática permite verificar se o mecanismo detecta o defeito que pretende impedir. Quando há comparação com o processamento em R, a referência, os dados, a semente, a tolerância e o ambiente compõem o contexto da evidência. Por isso, critérios pendentes, testes pulados por ausência de dados e divergências conhecidas não são classificados automaticamente como funcionalidades validadas.
+
+A rastreabilidade inclui, ainda, o vínculo entre o artefato verificado e a versão em que o resultado foi obtido. O capítulo de testes registra casos sobre o executável de setembro e medições posteriores no ambiente de desenvolvimento, além da versão publicada em outubro. A descrição de um cenário aprovado em uma dessas condições não é estendida automaticamente às demais. Para funcionalidades acrescentadas depois do plano, a evidência disponível deve ser identificada pelo teste automatizado, pelo relatório de medição ou pela verificação específica correspondente.
+
+% Fontes internas: docs/monografia.md, Parte II, 4.1; docs/testes-obrigatorios.md;
+% docs/rotas-api.md; tests/test_api_etapas.py; tests/test_desktop_etapas.py.
+% Os IDs do plano são preservados; RF-12 e RF-14 pertencem ao multiverso.
+
 \section{Planejamento e organização do projeto}
+
+O planejamento articulou o calendário acadêmico, o acompanhamento do orientador e a decomposição técnica da aplicação. O calendário definiu as entregas formais, enquanto os planos de desenvolvimento organizaram as atividades necessárias à implementação. As revisões da monografia, os testes e a comunicação com o laboratório foram articulados às atividades de programação, permitindo incorporar os ajustes identificados durante as verificações.
 
 \subsection{Etapas de desenvolvimento}
 
+No primeiro semestre, as atividades compreenderam a definição do grupo e do tema, a ideação, a preparação do vídeo de apresentação da proposta, a definição da orientação, a aprovação do escopo e a elaboração dos capítulos iniciais. A apresentação do TCC I e os ajustes decorrentes das orientações recebidas constituíram os marcos de transição para a continuidade do trabalho.
+
+No desenvolvimento técnico, a aplicação foi decomposta em fases de fundação, ingestão e validação, métricas de qualidade, correção, diagnóstico, pré-processamento, estatística, geração sintética, decisão, persistência, interoperabilidade e interface. O histórico também contém a fase de multiverso, posteriormente retirada do escopo da monografia. Essa decomposição descreve a organização da implementação, não uma declaração de que todos os critérios de todas as fases foram atendidos.
+
+A construção iniciou-se pelos contratos e pelas estruturas de dados, avançando para os algoritmos e sua integração. Os planos registrados a partir de julho documentam essa sequência. A interface Windows foi acrescentada à evolução do projeto, seguida de ajustes de operação, paralelismo, métodos de processamento, análises e figuras. Em outubro, o fluxo passou a permitir a inspeção dos resultados por etapas. As atividades posteriores incluíram correções e verificações dos métodos, conforme os registros discutidos no capítulo de testes.
+
+As fases foram acompanhadas por verificações de comportamento e por revisão dos contratos que as conectam. Os testes unitários examinam operações delimitadas; os testes de propriedade procuram invariantes; as comparações de referência verificam o comportamento diante de saídas conhecidas; e os testes de integração exercitam a composição dos componentes. Essa distribuição permite localizar diferenças sem atribuir toda falha ao último algoritmo executado.
+
+A automação desses testes não deve ser confundida com uma rotina ativa de integração contínua. Conforme registrado na Seção~\ref{sec:5-5}, as verificações dependem de execução deliberada, e o conjunto de testes alcançado varia conforme o ambiente e a seleção utilizada. O acompanhamento do desenvolvimento considera, por isso, o comando executado, seu resultado, os dados disponíveis e as limitações registradas.
+
 \subsection{Cronograma acadêmico}
+
+O calendário acadêmico estabeleceu entregas distribuídas pelos dois semestres de 2026. A Tabela~\ref{tab:4-cronograma-academico} sintetiza os marcos relevantes à organização do projeto. As datas representam prazos e janelas institucionais, não uma comprovação de conclusão de cada atividade.
+
+\begin{table}[htbp]
+\centering
+\caption{Principais marcos do calendário acadêmico de 2026.}
+\label{tab:4-cronograma-academico}
+\small
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Prazo ou período} & \textbf{Marco previsto} \\ \hline
+02/03 & Definição dos grupos e do título do projeto. \\ \hline
+19/03 & Entrega do vídeo de apresentação da proposta. \\ \hline
+01/04 e 17/04 & Declaração de concordância e entrega do escopo aprovado, respectivamente. \\ \hline
+27/05 & Entrega dos capítulos 1, 2 e 3. \\ \hline
+08 a 12/06 & Janela de apresentação do TCC I. \\ \hline
+24/08 & Atualização cadastral dos grupos. \\ \hline
+06/09 e 13/09 & Entrega do cronograma e do relatório de andamento, respectivamente. \\ \hline
+09/11 & Entrega do documento final para avaliação do orientador. \\ \hline
+16/11 & Entrega da aprovação do orientador. \\ \hline
+19/11 & Entrega da declaração de revisão de português e do vídeo de demonstração. \\ \hline
+23/11 & Distribuição do documento aos professores da banca. \\ \hline
+01, 02, 03 e 08/12 & Sessões previstas para apresentação do TCC II. \\ \hline
+09 a 16/12 & Janela prevista para ajustes após a banca. \\ \hline
+\end{tabularx}
+\par\smallskip{\footnotesize Fonte: calendário acadêmico informado ao grupo.}
+\end{table}
+
+Os prazos condicionais de recuperação não foram tratados como etapas ordinárias de desenvolvimento. A preparação do texto, do vídeo e da apresentação precisa anteceder suas respectivas entregas, preservando tempo para revisão e eventuais solicitações do orientador.
 
 \subsection{Cronograma de desenvolvimento e diagrama de Gantt}
 
+O cronograma de acompanhamento estabelecido pelo orientador previu a consolidação da organização do grupo em 6 de setembro; a continuidade do desenvolvimento e da revisão do texto em 13 de setembro; novos testes em 21 de setembro; e ajustes da aplicação e continuidade da validação em 28 de setembro. Para outubro, foram definidos marcos de consolidação das funcionalidades e revisão dos resultados em 12 de outubro, validação final dos componentes principais em 19 de outubro e consolidação dos resultados e capítulos em 26 de outubro.
+
+Para novembro, o acompanhamento previa a entrega ao orientador em 9 de novembro, a aprovação em 18 de novembro, a revisão final em 19 de novembro e a finalização dos materiais em 25 de novembro. Há diferenças entre esses marcos e os prazos institucionais de aprovação, em 16 de novembro, de entrega do vídeo, em 19 de novembro, e de distribuição à banca, em 23 de novembro. Para efeito do planejamento apresentado, os prazos institucionais mais antecipados constituem as referências de entrega; os marcos posteriores de acompanhamento não os substituem.
+
+A Figura~\ref{fig:4-gantt} apresenta um Gantt sintético em escala mensal. As faixas representam a organização geral das atividades acadêmicas e técnicas, combinando o planejamento informado e o período documentado de implementação. Não representam medições de esforço individual ou datas exatas de início e término de cada tarefa. A distribuição nominal das responsabilidades é detalhada na subseção seguinte.
+
+\begin{figure}[htbp]
+\centering
+\caption{Diagrama de Gantt sintético das atividades do projeto em 2026.}
+\label{fig:4-gantt}
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\begin{tabularx}{\textwidth}{|X|*{11}{c|}}
+\hline
+\textbf{Atividade e equipe} & Fev & Mar & Abr & Mai & Jun & Jul & Ago & Set & Out & Nov & Dez \\ \hline
+Ideação e escopo (grupo) & X & X & X & & & & & & & & \\ \hline
+Fundamentação e texto (monografia) & & & X & X & X & & & X & X & X & X \\ \hline
+Núcleo e integração (desenvolvimento) & & & & & & X & X & X & X & & \\ \hline
+Janela e distribuição (desenvolvimento) & & & & & & & X & X & X & X & \\ \hline
+Testes e ajustes (validação e desenvolvimento) & & & & & & X & X & X & X & X & \\ \hline
+Consolidação das entregas (grupo) & & & & & X & & & & X & X & \\ \hline
+Apresentação e ajustes finais (grupo) & & & & & X & & & & & X & X \\ \hline
+\end{tabularx}
+\endgroup
+\par\smallskip{\footnotesize Fonte: elaboração dos autores a partir dos cronogramas informados e dos planos de desenvolvimento. X indica o mês abrangido pela atividade; as faixas constituem uma síntese do planejamento.}
+\end{figure}
+
+As atividades de novembro e dezembro são apresentadas como previstas quando não há registro de sua conclusão. Da mesma forma, a disponibilização da aplicação ao laboratório e a avaliação pelos usuários constituem atividades diferentes: o envio do software não encerra a coleta de retorno. O estado da avaliação deve ser considerado na interpretação dos resultados apresentados no capítulo de testes.
+
+A avaliação pelo laboratório possui protocolo próprio e não se confunde com os testes internos. Como descrito na Seção~\ref{sec:5-4}, o profissional utiliza o aplicativo no próprio computador e responde a um formulário após o uso. A conclusão da tarefa é autodeclarada; o protocolo não produz observação direta dos gestos nem medição do tempo de execução pelo participante. Enquanto os resultados não estiverem consolidados, essa etapa permanece identificada como avaliação em andamento, sem atribuição antecipada de aprovação ou de ganho de produtividade.
+
 \subsection{Papéis e responsabilidades dos integrantes}
 
+A divisão de responsabilidades considerou as frentes de desenvolvimento, redação, testes e comunicação com o laboratório. A Tabela~\ref{tab:4-responsabilidades} apresenta as atribuições informadas pelo grupo. A distribuição expressa responsabilidades de trabalho, sem inferir dedicação, autoria ou participação a partir da quantidade de alterações no repositório.
+
+\begin{table}[htbp]
+\centering
+\caption{Papéis e responsabilidades dos integrantes.}
+\label{tab:4-responsabilidades}
+\small
+\begin{tabularx}{\textwidth}{|p{0.30\textwidth}|X|}
+\hline
+\textbf{Integrante} & \textbf{Responsabilidades} \\ \hline
+Gabriel Campari Correia & Revisão, reestruturação e continuidade da monografia. \\ \hline
+Gabriel Henrique Imolene Vieira & Revisão, reestruturação e continuidade da monografia. \\ \hline
+Gustavo Almeida de Moura & Desenvolvimento da aplicação e implementação das funcionalidades do projeto. \\ \hline
+João Victor Maximiano Vieira & Participação na elaboração da monografia e realização dos testes e validações. \\ \hline
+Kaick Kenithi Nishiya & Coordenação do desenvolvimento, implementação de funcionalidades, participação nos testes e validações e comunicação com o laboratório de metabolômica. \\ \hline
+Lucas Secanho do Prado & Desenvolvimento da aplicação e implementação das funcionalidades do projeto. \\ \hline
+\end{tabularx}
+\par\smallskip{\footnotesize Fonte: divisão de responsabilidades informada pelos integrantes.}
+\end{table}
+
+No Gantt, a frente de monografia corresponde principalmente aos responsáveis pela redação e revisão, com participação de João Victor nos conteúdos e nas verificações. A frente de desenvolvimento reúne Gustavo, Kaick e Lucas; a de validação articula João Victor e Kaick com os desenvolvedores responsáveis pelos ajustes. A comunicação com o laboratório é conduzida por Kaick. As entregas acadêmicas e a apresentação demandam a articulação do grupo, sob acompanhamento do orientador.
+
 \section{Arquitetura do software}
+\label{sec:4-arquitetura}
+
+A arquitetura organiza o Refino em componentes de interação, aplicação, cálculo e infraestrutura. Essa organização permite que a janela e a linha de comando compartilhem os procedimentos científicos, ao mesmo tempo que mantém o armazenamento e o transporte de informações em componentes específicos. O aplicativo final utiliza Qt por meio de PySide6, uma API interna construída com FastAPI e persistência local em SQLite.
 
 \subsection{Visão geral da arquitetura}
 
+O executável inicia os recursos necessários ao funcionamento local, prepara o banco e disponibiliza um servidor HTTP interno com Uvicorn. O servidor é executado em uma linha de execução do próprio processo, enquanto a interface mantém o ciclo de eventos do Qt. A prontidão é verificada pela rota \texttt{/health} antes de a aplicação depender do serviço. A comunicação utiliza o endereço de retorno local \texttt{127.0.0.1}.
+
+A existência de uma API interna não transforma o produto em um sistema web implantado em servidor remoto. O caminho de utilização entregue é a janela Windows. A interface Streamlit e a configuração com PostgreSQL e Docker permanecem como elementos do histórico técnico e de ambientes de desenvolvimento, mas deixaram de constituir o modo principal de operação. Essa mudança foi registrada durante a evolução do projeto.
+
+O fluxo arquitetural pode ser resumido como interface gráfica, cliente HTTP, API interna, coordenação do processamento e módulos científicos. A persistência e os escritores de arquivos são acionados nos pontos que necessitam de armazenamento ou geração de artefatos. A linha de comando reutiliza componentes de cálculo e serialização, sem exigir que toda operação percorra a janela ou a API.
+
+A Figura~\ref{fig:4-arquitetura-local} sintetiza o caminho principal de comunicação. Os módulos científicos são invocados pela coordenação das operações, e não pelos controles visuais diretamente. O banco conserva o contexto persistido, enquanto os escritores produzem os arquivos científicos; o conteúdo numérico integral das matrizes não é representado como uma coleção de células no banco relacional.
+
+\begin{figure}[htbp]
+\centering
+\caption{Organização do fluxo principal da aplicação local.}
+\label{fig:4-arquitetura-local}
+\begin{tabular}{c}
+\fbox{Interface Windows: Qt/PySide6} \\
+$\updownarrow$ \\
+\fbox{Cliente HTTP e contratos de comunicação} \\
+$\updownarrow$ \\
+\fbox{API interna: FastAPI/Uvicorn em 127.0.0.1} \\
+$\downarrow$ \\
+\fbox{Coordenação de trabalhos e especificação do processamento} \\
+$\downarrow$ \\
+\fbox{Validação, diagnóstico, correção e pré-processamento} \\
+$\downarrow$ \\
+\fbox{Estatística, métricas e apresentação dos resultados} \\
+\end{tabular}
+\par\smallskip
+{\footnotesize Serviços de apoio à coordenação: repositórios SQLAlchemy/SQLite, migrações Alembic e escritores dos arquivos de saída.}
+\par\smallskip{\footnotesize Fonte: elaboração dos autores a partir dos componentes da aplicação.}
+\end{figure}
+
 \subsection{Componentes e responsabilidades}
+
+O pacote \texttt{domain} reúne estruturas que representam a matriz, seus metadados, a especificação do tratamento e os resultados. Nele são definidos vocabulários de opções aceitas, como os corretores e as estratégias de transformação. Essa centralização reduz a possibilidade de a interface, a API e o algoritmo atribuírem significados diferentes ao mesmo parâmetro. Como anotações de tipos não validam valores recebidos de arquivos ou requisições, essas fronteiras também utilizam verificações em tempo de execução.
+
+O pacote \texttt{io} concentra a identificação do formato, a leitura, a validação e a escrita dos arquivos. O pacote \texttt{metrics} calcula indicadores de qualidade, enquanto \texttt{diagnosis} constrói o perfil e as indicações sobre os dados. O pacote \texttt{correction} implementa os corretores; \texttt{preprocessing} organiza os filtros, a imputação, a normalização, a transformação e o escalonamento. As análises estatísticas são implementadas em \texttt{statistics}.
+
+A camada \texttt{decision} organiza os mecanismos de apoio à escolha do corretor. É necessário distinguir sua predição de uma comparação que executa os métodos candidatos: os dois procedimentos possuem custos e evidências diferentes. A aplicação mantém a intervenção do pesquisador, permitindo que a proposta seja examinada e modificada.
+
+Os pacotes \texttt{reporting} e \texttt{plots} organizam a apresentação dos resultados e a construção das figuras. A persistência é concentrada em \texttt{persistence}, que define o esquema, os repositórios e a configuração de acesso ao banco. O pacote \texttt{api} recebe pedidos e coordena os trabalhos; \texttt{desktop} implementa o arranque e a janela. A interface também reutiliza componentes de cliente e de fluxo localizados em \texttt{ui}, sem que isso signifique a manutenção da tela web como produto entregue.
+
+Essa decomposição permite verificar operações científicas sem abrir a janela e verificar a interface com respostas controladas. A dependência pretendida segue dos componentes de interação e infraestrutura para os contratos de domínio e os serviços de cálculo. Trata-se de uma separação de responsabilidades aplicada ao projeto, sem pressupor que toda dependência do repositório seja automaticamente fiscalizada por um único teste arquitetural.
+
+A representação interna utiliza amostras nas linhas e variáveis nas colunas, diferentemente da disposição dos arquivos de medições analisados no projeto. A camada de ingestão realiza a conversão e preserva a associação entre identificadores e metadados. A matriz do domínio é acompanhada por informações como ordem de injeção, tipo de amostra, grupo e lote. Tipo e grupo não são intercambiáveis: identificar um QC não equivale a atribuir uma classe experimental.
+
+O estado da interação é separado da computação numérica. A janela conserva seleções e referências aos resultados apresentados; os contratos de domínio representam os dados e as escolhas; os serviços coordenam sua execução. Essa distinção é especialmente importante no processamento por etapas, pois o controle visual precisa saber se uma figura ainda corresponde à entrada e à configuração correntes.
 
 \subsection{Comunicação entre interface, API interna e processamento}
 
+A janela coleta os arquivos e os valores dos controles e os encaminha ao cliente HTTP. A API valida o pedido, resolve a especificação e aciona os componentes correspondentes. Os resultados são serializados para a interface, que apresenta os resumos, o estado do trabalho e as opções de obtenção dos artefatos. Erros de transporte, rejeições de entrada e falhas de execução precisam ser diferenciados para que a mensagem indique a condição efetivamente encontrada.
+
+Trabalhos demorados são despachados e identificados para acompanhamento posterior. A janela consulta o progresso por temporizadores do Qt, evitando depender de uma interação manual a cada atualização. A separação entre disparo e leitura do estado permite manter a interface operacional durante o cálculo e oferecer a solicitação de cancelamento. Esse cancelamento é cooperativo: o pedido é observado nos pontos previstos pelo processamento.
+
+O fluxo por etapas utiliza as rotas \texttt{/etapas/correcao} e \texttt{/etapas/pre-processamento} para as prévias, e \texttt{/execucoes} para a execução final. Cada pedido transporta as informações necessárias à operação. A sequência percorrida pelo usuário é controlada pela janela; não depende de uma sessão implícita de etapas no servidor. Isso não significa que o servidor seja desprovido de estado: ele mantém registros dos trabalhos e um mecanismo de reutilização de correções em memória.
+
+Na interface, cada etapa conserva uma representação dos parâmetros e da identidade das entradas utilizados no disparo. Essa representação é comparada com a configuração corrente para classificar a etapa como não realizada, em curso, atualizada ou desatualizada. A alteração de um campo da correção afeta seus resultados e os das etapas dependentes; uma alteração exclusiva da etapa final não invalida necessariamente a correção já calculada. Assim, a validade do resultado está ligada aos valores que o produziram.
+
+Na janela, os caminhos que disparam correção verificam se já há outra correção em andamento. Essa regra organiza as ações do usuário e evita a disputa de recursos entre operações custosas iniciadas pela mesma interface. Ela não deve ser interpretada como um bloqueio universal de todos os possíveis clientes da API ou de execuções independentes pela linha de comando.
+
+O cache de correções é uma estrutura limitada em memória, com acesso protegido por trava e remoção dos elementos menos recentemente utilizados. Ele armazena resultados de correção e não substitui a persistência das execuções. Ao encerrar o processo, sua retenção não é preservada como histórico; ao remover um resultado por capacidade, uma solicitação posterior pode exigir novo cálculo. A chave de reutilização precisa incorporar os dados e os parâmetros que alteram a correção.
+
+% Fontes de implementação: desktop/servidor.py; desktop/etapas.py;
+% desktop/janela/principal.py; api/reuso.py; api/rotas.py.
+
 \subsection{Fluxo de execução dos dados}
 
+O fluxo inicia com a escolha dos arquivos de medições e de descrição das amostras e do modo de aquisição. A leitura identifica a estrutura de entrada, converte os valores para a representação numérica utilizada pelo domínio e verifica a coerência entre os arquivos. A validação antecede as operações científicas, pois uma associação incorreta entre colunas, amostras e ordem de injeção comprometeria a interpretação de qualquer resultado posterior.
+
+Com a matriz aceita, o diagnóstico reúne informações sobre ausências, dispersão e comportamento dos controles de qualidade, além de elementos utilizados na avaliação de lotes. O pesquisador pode utilizar essas informações para definir a configuração, consultar o palpite de corretor ou solicitar a medição comparativa. A possibilidade de intervenção mantém a escolha final vinculada ao procedimento selecionado e à justificativa disponível.
+
+Em seguida, a correção utiliza o método configurado, a organização dos lotes e a semente pertinente. A saída corrigida alimenta o pré-processamento, que aplica os filtros e as operações de tratamento de ausências, normalização, transformação e escalonamento definidos na especificação. A seleção desses procedimentos interfere na matriz final; por isso, os parâmetros integram a identidade da execução e precisam acompanhar o resultado.
+
+O executor de pré-processamento declara a sequência das operações como um contrato explícito. Na implementação consultada, a ordem é: filtro por RSD dos QCs; primeiro filtro por ordenação; segundo filtro por ordenação; remoção de variância quase nula; descarte por ausência nos grupos; imputação; normalização por amostra; transformação; e escalonamento. Os filtros configuráveis podem estar desativados, mas sua posição na sequência permanece definida. O tratamento de ausências também pode remover variáveis quando a estratégia selecionada é a exclusão.
+
+Cada etapa registra as quantidades de entrada e saída e o contexto da transformação. Se todas as variáveis forem removidas, o executor sinaliza a condição em vez de prosseguir com estatísticas sobre uma matriz vazia. Esse registro é necessário para explicar por que uma saída contém menos variáveis e para distinguir filtragem de alteração das intensidades.
+
+O fluxo detalhado conserva, além da matriz final, a matriz anterior à transformação. Essa representação atende às análises que exigem escalas distintas: a comparação de intensidades para o cálculo da razão entre grupos utiliza a matriz anterior à transformação, enquanto o teste estatístico pode utilizar a matriz processada. A compatibilidade entre amostras e variáveis é verificada antes de utilizar essas duas representações em conjunto.
+
+No modo por etapas, o usuário pode inspecionar as figuras intermediárias antes de prosseguir. O mecanismo de reutilização de correções evita repetir um cálculo compatível ainda retido em memória, mas pode deixar de reutilizá-lo após sua remoção do cache. O benefício funcional do passo a passo é a inspeção intermediária; sua existência não sustenta, isoladamente, uma afirmação de redução geral do tempo de processamento.
+
+Após o tratamento, são executadas as análises solicitadas e calculadas as informações de qualidade. As métricas devem ser interpretadas com sua variante, seu estimador e o conjunto de dados a que se referem. A aplicação disponibiliza as matrizes e os arquivos de intercâmbio correspondentes, enquanto a persistência conserva o contexto registrado da execução. A conservação conjunta dos dados de origem, dos parâmetros, dos registros e dos artefatos é necessária para reconstruir o procedimento.
+
 \subsection{Decisões arquiteturais}
+
+A adoção de um aplicativo Windows empacotado atende à necessidade de disponibilizar uma ferramenta executável sem exigir do pesquisador a preparação de um ambiente Python ou de serviços Docker. O SQLite acompanha essa escolha ao permitir persistência em arquivo local. A API interna foi preservada para reaproveitar contratos e operações existentes e concentrar a coordenação dos pedidos, sem manter a implantação web como requisito de uso.
+
+A restrição ao endereço local reduz a superfície de exposição pela rede e é verificada no componente de servidor. Como a solução não implementa autenticação para acesso simultâneo de usuários remotos, sua arquitetura é apresentada como aplicação local. O processamento principal discutido neste capítulo não exige o envio das matrizes clínicas a uma plataforma externa; a exportação produz arquivos para utilização posterior pelo pesquisador.
+
+A imutabilidade das matrizes, a especificação explícita e a identificação dos parâmetros sustentam a comparação entre processamentos. Esses elementos também permitem que o mecanismo de reutilização opere sobre resultados protegidos contra modificações. A validade de uma entrada de cache deve considerar a identidade dos dados e a configuração que altera o cálculo, evitando reaproveitar uma correção produzida em condições diferentes.
+
+A geração dos arquivos utiliza escritores compartilhados entre as formas de acesso, reduzindo duplicação de regras de serialização. A igualdade entre duas saídas produzidas pelo mesmo escritor demonstra consistência entre interfaces, mas não substitui a verificação independente do formato: uma falha compartilhada pode produzir arquivos igualmente incorretos. Por isso, os contratos de exportação e as verificações de paridade cumprem funções distintas.
+
+A identificação de resultados desatualizados foi implementada por comparação do conteúdo da configuração, e não apenas por eventos dos controles gráficos. A própria aplicação pode preencher campos ao apresentar uma recomendação; associar a validade exclusivamente a um clique do usuário ou à alteração de um controle não expressaria, de forma suficiente, quais valores produziram o resultado. A representação dos parâmetros por etapa permite invalidar apenas o que depende da alteração e evita apresentar uma figura antiga como descrição da seleção atual.
+
+As escolhas arquiteturais também conservam limites de inferência. A igualdade de duas execuções com a mesma semente verifica uma propriedade de reprodução; a concordância com uma referência avalia outra propriedade; e a utilidade percebida pelo profissional depende da avaliação com usuários. Esses três níveis são complementares. O emprego de um modelo de aprendizado de máquina para apoiar a escolha do corretor não substitui a avaliação da qualidade nem demonstra que o sistema escolhe automaticamente todas as configurações ótimas de pré-processamento.
+
+Por fim, a separação entre algoritmos científicos e serviços de referência permite comparar a implementação com procedimentos em R sem incorporar essa dependência ao núcleo do fluxo principal. Os testes, os registros de decisão e as medições documentam o alcance dessas comparações. As divergências encontradas, as funcionalidades fora do escopo e os critérios ainda não satisfeitos são mantidos como limites explícitos, preservando a distinção entre arquitetura implementada e evidência de validação.
+
+
+% Revisão de consistência: README.md e arquivos README/LEIA-ME do repositório;
+% capítulos 1 a 6; domain, preprocessing, api e desktop.
 
 \section{Projeto do banco de dados}
 \label{sec:projeto-banco-dados}
