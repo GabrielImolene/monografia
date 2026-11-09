@@ -132,10 +132,6 @@ O desenvolvimento também utiliza testes negativos, nos quais uma condição inv
 
 A rastreabilidade inclui, ainda, o vínculo entre o artefato verificado e a versão em que o resultado foi obtido. O capítulo de testes registra casos sobre o executável de setembro e medições posteriores no ambiente de desenvolvimento, além da versão publicada em outubro. A descrição de um cenário aprovado em uma dessas condições não é estendida automaticamente às demais. Para funcionalidades acrescentadas depois do plano, a evidência disponível deve ser identificada pelo teste automatizado, pelo relatório de medição ou pela verificação específica correspondente.
 
-% Fontes internas: docs/monografia.md, Parte II, 4.1; docs/testes-obrigatorios.md;
-% docs/rotas-api.md; tests/test_api_etapas.py; tests/test_desktop_etapas.py.
-% Os IDs do plano são preservados; RF-12 e RF-14 pertencem ao multiverso.
-
 \section{Planejamento e organização do projeto}
 
 O planejamento articulou o calendário acadêmico, o acompanhamento do orientador e a decomposição técnica da aplicação. O calendário definiu as entregas formais, enquanto os planos de desenvolvimento organizaram as atividades necessárias à implementação. As revisões da monografia, os testes e a comunicação com o laboratório foram articulados às atividades de programação, permitindo incorporar os ajustes identificados durante as verificações.
@@ -154,34 +150,61 @@ A automação desses testes não deve ser confundida com uma rotina ativa de int
 
 \subsection{Cronograma acadêmico}
 
-O calendário acadêmico estabeleceu entregas distribuídas pelos dois semestres de 2026. A Tabela~\ref{tab:4-cronograma-academico} sintetiza os marcos relevantes à organização do projeto. As datas representam prazos e janelas institucionais, não uma comprovação de conclusão de cada atividade.
+O planejamento acadêmico foi organizado a partir dos documentos institucionais de cronograma do TCC I, referente ao primeiro semestre de 2026, e do TCC II, referente ao segundo semestre. Esses documentos distinguem a data de início da semana de atividades da data limite de entrega. Nas Tabelas~\ref{tab:4-cronograma-academico} e~\ref{tab:4-cronograma-academico-ii}, as datas de entrega correspondem à coluna de prazos dos documentos originais; as atividades sem prazo específico são identificadas pelo período ou pelo início da semana previsto. Todas as datas apresentadas referem-se a 2026 e expressam o planejamento institucional, sem constituir comprovação de execução ou de aprovação do grupo.
+
+No TCC I, os marcos concentraram-se na definição da proposta, na aprovação do escopo, na elaboração dos capítulos iniciais e na apresentação à banca. A fase de ideação foi prevista nas semanas iniciadas em 2 e 9 de março, e a preparação para a apresentação, na semana iniciada em 1º de junho. A Tabela~\ref{tab:4-cronograma-academico} reúne essas atividades e as entregas correspondentes.
 
 \begin{table}[htbp]
 \centering
-\caption{Principais marcos do calendário acadêmico de 2026.}
+\caption{Cronograma acadêmico do TCC I no primeiro semestre de 2026.}
 \label{tab:4-cronograma-academico}
 \small
-\begin{tabularx}{\textwidth}{|l|X|}
+\begin{tabularx}{\textwidth}{|p{0.26\textwidth}|X|}
 \hline
-\textbf{Prazo ou período} & \textbf{Marco previsto} \\ \hline
-02/03 & Definição dos grupos e do título do projeto. \\ \hline
-19/03 & Entrega do vídeo de apresentação da proposta. \\ \hline
-01/04 e 17/04 & Declaração de concordância e entrega do escopo aprovado, respectivamente. \\ \hline
+\textbf{Prazo ou referência temporal} & \textbf{Atividade ou entrega prevista} \\ \hline
+02/03 & Entrega da definição dos grupos e do título do projeto. \\ \hline
+Semanas de 02/03 e 09/03 & Fase de ideação com apoio docente, sem prazo de entrega específico. \\ \hline
+19/03 & Entrega do vídeo de apresentação da proposta (\textit{pitch}), com duração máxima de cinco minutos. \\ \hline
+Semana de 23/03 & Atribuição dos professores orientadores. \\ \hline
+01/04 & Entrega da Declaração de Concordância. \\ \hline
+Semanas de 06/04 e 13/04 & Desenvolvimento do escopo com aval do orientador. \\ \hline
+17/04 & Entrega do escopo aprovado pelo orientador. \\ \hline
+Semanas de 20/04 a 18/05 & Desenvolvimento dos capítulos 1, 2 e 3. \\ \hline
 27/05 & Entrega dos capítulos 1, 2 e 3. \\ \hline
-08 a 12/06 & Janela de apresentação do TCC I. \\ \hline
-24/08 & Atualização cadastral dos grupos. \\ \hline
-06/09 e 13/09 & Entrega do cronograma e do relatório de andamento, respectivamente. \\ \hline
-09/11 & Entrega do documento final para avaliação do orientador. \\ \hline
-16/11 & Entrega da aprovação do orientador. \\ \hline
-19/11 & Entrega da declaração de revisão de português e do vídeo de demonstração. \\ \hline
-23/11 & Distribuição do documento aos professores da banca. \\ \hline
-01, 02, 03 e 08/12 & Sessões previstas para apresentação do TCC II. \\ \hline
-09 a 16/12 & Janela prevista para ajustes após a banca. \\ \hline
+Semana de 01/06 & Preparação para a apresentação do TCC I. \\ \hline
+08/06 e 12/06 & Datas previstas para apresentação do TCC I à banca de professores. \\ \hline
+Semana de 15/06 & Ajustes conforme as orientações do orientador e da banca. \\ \hline
 \end{tabularx}
-\par\smallskip{\footnotesize Fonte: calendário acadêmico informado ao grupo.}
+\par\smallskip{\footnotesize Fonte: elaboração dos autores a partir do documento institucional ``2026/1 -- TCC I''.}
 \end{table}
 
-Os prazos condicionais de recuperação não foram tratados como etapas ordinárias de desenvolvimento. A preparação do texto, do vídeo e da apresentação precisa anteceder suas respectivas entregas, preservando tempo para revisão e eventuais solicitações do orientador.
+No TCC II, a sequência institucional compreendeu a atualização cadastral, a apresentação do cronograma do grupo, o relatório de andamento dos módulos e a preparação do documento final para avaliação do orientador. As entregas de novembro antecedem a distribuição à banca e as sessões de apresentação de dezembro, conforme a Tabela~\ref{tab:4-cronograma-academico-ii}.
+
+\begin{table}[htbp]
+\centering
+\caption{Cronograma acadêmico do TCC II no segundo semestre de 2026.}
+\label{tab:4-cronograma-academico-ii}
+\small
+\begin{tabularx}{\textwidth}{|p{0.26\textwidth}|X|}
+\hline
+\textbf{Prazo ou referência temporal} & \textbf{Atividade ou entrega prevista} \\ \hline
+24/08 & Atualização cadastral dos grupos. \\ \hline
+06/09 & Entrega do cronograma de atividades do grupo. \\ \hline
+13/09 & Entrega do relatório de andamento dos módulos do sistema em desenvolvimento. \\ \hline
+09/11 & Entrega do documento final do TCC para avaliação do orientador, prevista no período de atividades de 14/09 a 09/11. \\ \hline
+16/11 & Entrega da aprovação do orientador sobre a qualidade do trabalho. \\ \hline
+19/11 & Entrega da declaração de revisão de português e do vídeo de demonstração do funcionamento do projeto. \\ \hline
+23/11 & Distribuição do documento final aos professores que compõem a banca avaliativa. \\ \hline
+01/12, 02/12 e 03/12 & Apresentação do TCC II à banca nas sessões 1 a 3. \\ \hline
+08/12 & Apresentação do TCC II à banca na sessão 4. \\ \hline
+09/12 a 16/12 & Período previsto para ajustes conforme as orientações do orientador e da banca. \\ \hline
+\end{tabularx}
+\par\smallskip{\footnotesize Fonte: elaboração dos autores a partir do documento institucional ``2026/2 -- TCC II''.}
+\end{table}
+
+As datas de apresentação correspondem às sessões previstas para os grupos da disciplina. Sua indicação não atribui ao presente grupo uma data ou um horário específicos. O cronograma do TCC II estabelece apresentações de trinta minutos, distribuídos entre quinze minutos de exposição e quinze minutos de arguição, e prevê a presença dos integrantes durante toda a sessão do respectivo dia.
+
+Os documentos também estabelecem entregas finais condicionadas à não obtenção da média: 24 de junho para o TCC I e 17 de dezembro para o TCC II. Esses prazos são distintos das etapas regulares e não substituem os prazos ordinários de entrega, aprovação e distribuição à banca. A organização das atividades de redação, revisão e preparação dos materiais deve, portanto, considerar as datas institucionais e o tempo necessário para incorporar as solicitações do orientador.
 
 \subsection{Cronograma de desenvolvimento e diagrama de Gantt}
 
@@ -308,9 +331,6 @@ Na janela, os caminhos que disparam correção verificam se já há outra corre�
 
 O cache de correções é uma estrutura limitada em memória, com acesso protegido por trava e remoção dos elementos menos recentemente utilizados. Ele armazena resultados de correção e não substitui a persistência das execuções. Ao encerrar o processo, sua retenção não é preservada como histórico; ao remover um resultado por capacidade, uma solicitação posterior pode exigir novo cálculo. A chave de reutilização precisa incorporar os dados e os parâmetros que alteram a correção.
 
-% Fontes de implementação: desktop/servidor.py; desktop/etapas.py;
-% desktop/janela/principal.py; api/reuso.py; api/rotas.py.
-
 \subsection{Fluxo de execução dos dados}
 
 O fluxo inicia com a escolha dos arquivos de medições e de descrição das amostras e do modo de aquisição. A leitura identifica a estrutura de entrada, converte os valores para a representação numérica utilizada pelo domínio e verifica a coerência entre os arquivos. A validação antecede as operações científicas, pois uma associação incorreta entre colunas, amostras e ordem de injeção comprometeria a interpretação de qualquer resultado posterior.
@@ -344,10 +364,6 @@ A identificação de resultados desatualizados foi implementada por comparação
 As escolhas arquiteturais também conservam limites de inferência. A igualdade de duas execuções com a mesma semente verifica uma propriedade de reprodução; a concordância com uma referência avalia outra propriedade; e a utilidade percebida pelo profissional depende da avaliação com usuários. Esses três níveis são complementares. O emprego de um modelo de aprendizado de máquina para apoiar a escolha do corretor não substitui a avaliação da qualidade nem demonstra que o sistema escolhe automaticamente todas as configurações ótimas de pré-processamento.
 
 Por fim, a separação entre algoritmos científicos e serviços de referência permite comparar a implementação com procedimentos em R sem incorporar essa dependência ao núcleo do fluxo principal. Os testes, os registros de decisão e as medições documentam o alcance dessas comparações. As divergências encontradas, as funcionalidades fora do escopo e os critérios ainda não satisfeitos são mantidos como limites explícitos, preservando a distinção entre arquitetura implementada e evidência de validação.
-
-
-% Revisão de consistência: README.md e arquivos README/LEIA-ME do repositório;
-% capítulos 1 a 6; domain, preprocessing, api e desktop.
 
 \section{Projeto do banco de dados}
 \label{sec:projeto-banco-dados}
