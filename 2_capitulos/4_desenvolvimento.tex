@@ -5,11 +5,11 @@
 
 \chapter[Desenvolvimento]{Desenvolvimento}
 
-Este capítulo apresenta o desenvolvimento do Refino, aplicativo para Windows destinado ao tratamento de matrizes de dados metabolômicos obtidas por cromatografia líquida acoplada à espectrometria de massas. São descritos o levantamento dos requisitos, a organização do projeto e a arquitetura que articula a interface gráfica, o processamento científico e a persistência. A exposição considera as necessidades relatadas pelo laboratório parceiro, as decisões registradas durante a implementação e as funcionalidades efetivamente acessíveis pelo fluxo principal da aplicação.
+Este capítulo apresenta o desenvolvimento do MetaRefino, aplicativo para Windows destinado ao tratamento de matrizes de dados metabolômicos obtidas por cromatografia líquida acoplada à espectrometria de massas. São descritos o levantamento dos requisitos, a organização do projeto e a arquitetura que articula a interface gráfica, o processamento científico e a persistência. A exposição considera as necessidades relatadas pelo laboratório parceiro, as decisões registradas durante a implementação e as funcionalidades efetivamente acessíveis pelo fluxo principal da aplicação.
 
 O escopo apresentado compreende a preparação dos arquivos, a validação, o diagnóstico, a correção do sinal, o pré-processamento, as análises estatísticas e a geração de resultados. A análise de multiverso e a predição e o enriquecimento de vias metabólicas foram excluídos do escopo da monografia e da entrega avaliada, embora existam componentes em versão beta no repositório e no executável. Essa delimitação acompanha a adotada no capítulo de testes. A presença de uma implementação, por si só, não é tomada como comprovação de sua validação em todas as condições de uso.
 
-A entrada do Refino corresponde a uma matriz tabular já produzida pelo processamento primário, e não ao arquivo instrumental bruto. A detecção e o alinhamento dos picos permanecem no fluxo anterior, realizado com ferramentas como o Progenesis QI. Além disso, uma \textit{feature}, identificada por características do sinal como tempo de retenção e razão massa/carga, não equivale necessariamente a um metabólito identificado. O tratamento e as análises apresentados neste capítulo operam sobre essas variáveis e não estabelecem, isoladamente, a identidade química ou a relevância biológica de cada sinal.
+A entrada do MetaRefino corresponde a uma matriz tabular já produzida pelo processamento primário, e não ao arquivo instrumental bruto. A detecção e o alinhamento dos picos permanecem no fluxo anterior, realizado com ferramentas como o Progenesis QI. Além disso, uma \textit{feature}, identificada por características do sinal como tempo de retenção e razão massa/carga, não equivale necessariamente a um metabólito identificado. O tratamento e as análises apresentados neste capítulo operam sobre essas variáveis e não estabelecem, isoladamente, a identidade química ou a relevância biológica de cada sinal.
 
 A descrição da arquitetura e dos requisitos complementa a metodologia do capítulo anterior e antecede a apresentação do modelo de dados e da implementação nas seções seguintes. As evidências de funcionamento, as diferenças entre versões e as limitações das verificações são discutidas no capítulo de testes, especialmente nas Seções~\ref{sec:5-1-3} e~\ref{sec:5-5}.
 
@@ -70,7 +70,7 @@ Os identificadores abaixo acompanham o levantamento relacionado ao plano de test
 \item[RF-08 --- Reprodução.] Permitir repetir o processamento com a mesma entrada, configuração e semente no ambiente considerado.
 \item[RF-09 --- Progresso.] Atualizar o acompanhamento dos trabalhos do fluxo principal sem exigir que o pesquisador solicite manualmente cada leitura.
 \item[RF-10 --- Matrizes de saída.] Gerar e salvar os artefatos de correção e pré-processamento, distinguindo o estágio representado por cada arquivo.
-\item[RF-11 --- Exportação.] Produzir arquivo no formato de intercâmbio com o MetaboAnalyst e, quando aplicado o teto de 5.000 variáveis definido pelo projeto, selecionar pelo critério de RSD e registrar as exclusões. Esse teto descreve a política implementada no Refino, sem constituir afirmação universal sobre todas as modalidades de uso da ferramenta externa.
+\item[RF-11 --- Exportação.] Produzir arquivo no formato de intercâmbio com o MetaboAnalyst e, quando aplicado o teto de 5.000 variáveis definido pelo projeto, selecionar pelo critério de RSD e registrar as exclusões. Esse teto descreve a política implementada no MetaRefino, sem constituir afirmação universal sobre todas as modalidades de uso da ferramenta externa.
 \item[RF-13 --- Cancelamento.] Permitir solicitar a interrupção dos trabalhos acompanhados pela aplicação e informar seu estado.
 \item[RF-15 --- Qualidade.] Exibir um conjunto de métricas de qualidade e identificar a variante e o estimador utilizados, permitindo interpretar os resultados além de um único indicador.
 \item[RF-16 --- Limites.] Apresentar as restrições da aplicação e o alcance das operações oferecidas.
@@ -238,7 +238,7 @@ Apresentação e ajustes finais (grupo) & & & & & X & & & & & X & X \\ \hline
 
 As atividades de novembro e dezembro são apresentadas como previstas quando não há registro de sua conclusão. Da mesma forma, a disponibilização da aplicação ao laboratório e a avaliação pelos usuários constituem atividades diferentes: o envio do software não encerra a coleta de retorno. O estado da avaliação deve ser considerado na interpretação dos resultados apresentados no capítulo de testes.
 
-A avaliação pelo laboratório possui protocolo próprio e não se confunde com os testes internos. Como descrito na Seção~\ref{sec:5-4}, o profissional utiliza o aplicativo no próprio computador e responde a um formulário após o uso. A conclusão da tarefa é autodeclarada; o protocolo não produz observação direta dos gestos nem medição do tempo de execução pelo participante. Enquanto os resultados não estiverem consolidados, essa etapa permanece identificada como avaliação em andamento, sem atribuição antecipada de aprovação ou de ganho de produtividade.
+A avaliação pelo laboratório possui protocolo próprio e não se confunde com os testes internos. Como descrito na Seção~\ref{sec:5-4}, o profissional utiliza o aplicativo no próprio computador e a avaliação foi concluída por devolutiva escrita. A conclusão da tarefa é autodeclarada; o protocolo não produz observação direta dos gestos nem medição do tempo de execução pelo participante. Enquanto os resultados não estiverem consolidados, essa etapa permanece identificada como avaliação em andamento, sem atribuição antecipada de aprovação ou de ganho de produtividade.
 
 \subsection{Papéis e responsabilidades dos integrantes}
 
@@ -267,7 +267,7 @@ No Gantt, a frente de monografia corresponde principalmente aos responsáveis pe
 \section{Arquitetura do software}
 \label{sec:4-arquitetura}
 
-A arquitetura organiza o Refino em componentes de interação, aplicação, cálculo e infraestrutura. Essa organização permite que a janela e a linha de comando compartilhem os procedimentos científicos, ao mesmo tempo que mantém o armazenamento e o transporte de informações em componentes específicos. O aplicativo final utiliza Qt por meio de PySide6, uma API interna construída com FastAPI e persistência local em SQLite.
+A arquitetura organiza o MetaRefino em componentes de interação, aplicação, cálculo e infraestrutura. Essa organização permite que a janela e a linha de comando compartilhem os procedimentos científicos, ao mesmo tempo que mantém o armazenamento e o transporte de informações em componentes específicos. O aplicativo final utiliza Qt por meio de PySide6, uma API interna construída com FastAPI e persistência local em SQLite.
 
 \subsection{Visão geral da arquitetura}
 
